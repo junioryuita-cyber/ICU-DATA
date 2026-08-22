@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background-color: white !important;
+      color: black !important;
+      font-size: 11pt;
+    }
+    .page-break-before {
+      page-break-before: always;
+    }
+  }
+}
+

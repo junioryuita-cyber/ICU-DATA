@@ -1,0 +1,6 @@
+{
+  "name": "ICU-DATA - ระบบงานและแดชบอร์ด ICU",
+  "description": "ระบบบันทึกและตรวจสอบสต็อกยา เวชภัณฑ์ รถ Emergency, Emergency Box อุณหภูมิตู้เย็นยา และความชื้นสัมพัทธ์ในหอผู้ป่วยหนัก (ICU) พร้อม Dashboard สรุปรายเดือนและบันทึกข้อมูลลง Firebase",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
