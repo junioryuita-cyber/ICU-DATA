@@ -1,6 +1,6 @@
 /**
  * ICU-DATA TypeScript definitions
- * System for ICU Medication, Emergency Cart, Emergency Box, Refrigerator Temperature & Humidity Logs
+ * System for ICU Medication (29 items), Emergency Cart, Emergency Box, Refrigerator Temperature & Humidity Logs
  */
 
 export type ShiftType = 'morning' | 'afternoon' | 'night';
@@ -67,9 +67,47 @@ export interface StaffRecorder {
   lastUsedAt?: string;
 }
 
-// 1. ตรวจสอบยาและเวชภัณฑ์ ประจำเดือน
-// - Adenosine 6 mg/ml inj (5 amp)
-// - Adrenaline 1 mg/ml inj (10 amp)
+// 29 Specific Medication & Supplies Catalog for ICU
+export interface MedicationDef {
+  id: string;
+  name: string;
+  targetCount: number;
+  unit: string;
+  category: string;
+}
+
+export const ICU_MEDICATION_CATALOG: MedicationDef[] = [
+  { id: 'adenosine', name: 'Adenosine 6 mg/ml inj', targetCount: 5, unit: 'amp', category: 'ยาระบบหัวใจและหลอดเลือด' },
+  { id: 'adrenaline', name: 'Adrenaline 1 mg/ml inj', targetCount: 10, unit: 'amp', category: 'ยาช่วยชีวิตฉุกเฉิน (CPR)' },
+  { id: 'alteplase', name: 'Alteplase inj. 50 mg', targetCount: 2, unit: 'กล่อง', category: 'ยาละลายลิ่มเลือด (Thrombolytic)' },
+  { id: 'albumin5', name: '5%Albumin 250 ml', targetCount: 2, unit: 'vial', category: 'สารน้ำและโปรตีนทดแทน' },
+  { id: 'amiodarone', name: 'Amiodarone 150 mg/3ml', targetCount: 6, unit: 'amp', category: 'ยาระบบหัวใจและหลอดเลือด' },
+  { id: 'calcium_gluconate', name: '10% Calcium Gluconate 10 ml', targetCount: 2, unit: 'amp', category: 'เกลือแร่และสารจำเป็น' },
+  { id: 'chlorpheniramine', name: 'Chlorpheniramine 10 mg', targetCount: 2, unit: 'amp', category: 'ยาแก้แพ้และแอนติฮิสตามีน' },
+  { id: 'cisatracurium_150', name: 'Cisatracurium 150mg/30 ml', targetCount: 5, unit: 'vial', category: 'ยาหย่อนกล้ามเนื้อ (Neuromuscular blocker)' },
+  { id: 'cisatracurium_10', name: 'Cisatracurium 10mg/5 ml', targetCount: 25, unit: 'vial', category: 'ยาหย่อนกล้ามเนื้อ (Neuromuscular blocker)' },
+  { id: 'dexamethasone', name: 'Dexamathasone 5 mg/ml', targetCount: 2, unit: 'amp', category: 'ยาสเตียรอยด์ (Steroids)' },
+  { id: 'digoxin', name: 'Digoxin 0.5 mg/2ml', targetCount: 1, unit: 'amp', category: 'ยาระบบหัวใจและหลอดเลือด' },
+  { id: 'dobutamine', name: 'Dobutamine 250mg', targetCount: 2, unit: 'amp', category: 'ยากระตุ้นหัวใจ (Inotropic)' },
+  { id: 'dopamine', name: 'Dopamine 250mg/10 ml', targetCount: 2, unit: 'amp', category: 'ยากระตุ้นความดัน (Vasopressor)' },
+  { id: 'furosemide_20', name: 'Furosemide 20 mg/2ml', targetCount: 4, unit: 'amp', category: 'ยาขับปัสสาวะ (Diuretics)' },
+  { id: 'furosemide_250', name: 'Furosemide 250 mg/10ml', targetCount: 2, unit: 'amp', category: 'ยาขับปัสสาวะ (Diuretics)' },
+  { id: 'glucose_50', name: '50%Glucose 50 ml', targetCount: 3, unit: 'vial', category: 'เกลือแร่และสารจำเป็น' },
+  { id: 'haloperidol', name: 'Haloperidol 5 mg', targetCount: 2, unit: 'amp', category: 'ยาระงับประสาทและจิตเวช' },
+  { id: 'hydrocortisone', name: 'Hydrocortisone 100 mg', targetCount: 3, unit: 'vial', category: 'ยาสเตียรอยด์ (Steroids)' },
+  { id: 'nicardipine', name: 'Nicardipine 10 mg', targetCount: 2, unit: 'amp', category: 'ยาลดความดันโลหิต' },
+  { id: 'nitroglycerine', name: 'Nitroglycerine 50 mg', targetCount: 2, unit: 'amp', category: 'ยาขยายหลอดเลือดหัวใจ' },
+  { id: 'norepinephrine', name: 'Norepipinephrine 4 mg/4 ml', targetCount: 8, unit: 'amp', category: 'ยากระตุ้นความดัน (Vasopressor)' },
+  { id: 'propofol', name: 'Propofol 200 mg/10 ml', targetCount: 5, unit: 'amp', category: 'ยาระงับความรู้สึกและยานอนหลับ' },
+  { id: 'sodium_bicarbonate', name: '7.5%Soduim bicarbonate 50 ml', targetCount: 2, unit: 'amp', category: 'สารปรับสมดุลกรดด่าง' },
+  { id: 'diazepam', name: 'Diazepam 10 mg', targetCount: 2, unit: 'amp', category: 'ยากันชักและสงบประสาท' },
+  { id: 'berodual_nb', name: 'Berodual NB 4 ml', targetCount: 10, unit: 'neb', category: 'ยาพ่นขยายหลอดลม' },
+  { id: 'berodual_mdi', name: 'Berodual MDI', targetCount: 4, unit: 'กล่อง', category: 'ยาพ่นขยายหลอดลม' },
+  { id: 'salbutamol_nb', name: 'Sulbutamol NB 2.5 ml', targetCount: 10, unit: 'neb', category: 'ยาพ่นขยายหลอดลม' },
+  { id: 'lidocaine_2', name: '2% Lidocaine', targetCount: 2, unit: 'amp', category: 'ยาชาและรักษาหัวใจเต้นผิดจังหวะ' },
+  { id: 'heparin', name: 'Heparine 25000 Units/5 ml', targetCount: 2, unit: 'amp', category: 'ยาต้านการแข็งตัวของเลือด' },
+];
+
 export interface MedicationItemRecord {
   remainingCount: number | null;
   targetCount: number;
@@ -82,8 +120,7 @@ export interface ShiftMedicationCheck {
   recorderName: string;
   recorderRole?: string;
   checkedAt?: string;
-  adenosine: MedicationItemRecord;
-  adrenaline: MedicationItemRecord;
+  items: Record<string, MedicationItemRecord>;
   overallNotes?: string;
   isComplete: boolean;
 }
@@ -102,9 +139,6 @@ export interface DailyMedicationRecord {
 }
 
 // 2. รถ Emergency (Crash Cart)
-// - 70% Alcohol (10 แผ่น) มีช่องหมายเหตุ
-// - Adrenaline 1 mg/ml inj (5 amp) มีช่องหมายเหตุ
-// - สำลี 5 ก้อน (2 ห่อ) มีช่องระบุวันหมดอายุ และเตือนก่อนวันหมดอายุจริง 3 เดือน + หมายเหตุ
 export interface SupplyExpiryItemRecord extends MedicationItemRecord {
   expiryDate?: string; // YYYY-MM-DD
   expiryAlert?: 'normal' | 'warning_3months' | 'expired';
@@ -135,9 +169,6 @@ export interface DailyEmergencyCartRecord {
 }
 
 // 3. Emergency Box (วันละ 1 ครั้ง ในเวรดึก 00.30-08.30)
-// - 70% Alcohol (10 แผ่น)
-// - Adrenaline 1 mg/ml inj (5 amp)
-// - สำลี 5 ก้อน (2 ห่อ + เตือนหมดอายุ 3 เดือน)
 export interface DailyEmergencyBoxRecord {
   day: number;
   month: number;
@@ -156,16 +187,13 @@ export interface DailyEmergencyBoxRecord {
   updatedAt?: string;
 }
 
-// 4. การบันทึกอุณหภูมิตู้เย็นยา
-// 3 กะ: เช้า (14.00), บ่าย (22.00), ดึก (06.00)
-// บันทึกค่า สูงสุด และ ต่ำสุด ในเวลา 09.00 ของทุกวัน
-// เกณฑ์ปกติ: 2 - 8 °C (กราฟสีน้ำเงิน)
-export interface ShiftTempPoint {
-  temp: number | null; // in Celsius
+// 4. การบันทึกอุณหภูมิตู้เย็นยา (2 - 8 C)
+export interface SingleTempReading {
+  temp: number | null;
   recorderName: string;
   recordedAt?: string;
   notes?: string;
-  status: 'normal' | 'low' | 'high' | 'unrecorded';
+  status?: 'normal' | 'low' | 'high' | 'unrecorded';
 }
 
 export interface DailyFridgeTempRecord {
@@ -173,34 +201,21 @@ export interface DailyFridgeTempRecord {
   month: number;
   yearCE: number;
   yearThai: number;
-  morning_14: ShiftTempPoint; // 14.00 น.
-  afternoon_22: ShiftTempPoint; // 22.00 น.
-  night_06: ShiftTempPoint; // 06.00 น.
-  dailyMax_09: {
-    temp: number | null;
-    recorderName: string;
-    recordedAt?: string;
-    notes?: string;
-  };
-  dailyMin_09: {
-    temp: number | null;
-    recorderName: string;
-    recordedAt?: string;
-    notes?: string;
-  };
+  morning_14?: SingleTempReading;
+  afternoon_22?: SingleTempReading;
+  night_06?: SingleTempReading;
+  dailyMax_09?: { temp: number | null; recorderName: string; recordedAt?: string; notes?: string };
+  dailyMin_09?: { temp: number | null; recorderName: string; recordedAt?: string; notes?: string };
   updatedAt?: string;
 }
 
-// 5. ความชื้นสัมพัทธ์ของตู้เย็นยาและห้องเตรียมยา
-// 3 กะ: เช้า (14.00), บ่าย (22.00), ดึก (06.00)
-// เกณฑ์ปกติ: 40 - 75 %RH (กราฟสีแดง)
-export interface ShiftHumidityPoint {
-  humidity: number | null; // in %RH
+// 5. การบันทึกความชื้นสัมพัทธ์ %RH (40 - 75 %RH)
+export interface SingleHumidityReading {
+  humidity: number | null;
   recorderName: string;
   recordedAt?: string;
-  location?: 'fridge_room' | 'prep_room' | 'both';
   notes?: string;
-  status: 'normal' | 'low' | 'high' | 'unrecorded';
+  status?: 'normal' | 'low' | 'high' | 'unrecorded';
 }
 
 export interface DailyHumidityRecord {
@@ -208,9 +223,9 @@ export interface DailyHumidityRecord {
   month: number;
   yearCE: number;
   yearThai: number;
-  morning_14: ShiftHumidityPoint; // 14.00 น.
-  afternoon_22: ShiftHumidityPoint; // 22.00 น.
-  night_06: ShiftHumidityPoint; // 06.00 น.
+  morning_14?: SingleHumidityReading;
+  afternoon_22?: SingleHumidityReading;
+  night_06?: SingleHumidityReading;
   updatedAt?: string;
 }
 
@@ -224,5 +239,5 @@ export interface ExpiryAlertInfo {
   itemName: string;
   expiryDate: string;
   daysRemaining: number;
-  status: 'expired' | 'warning_3months' | 'normal';
+  status: 'warning_3months' | 'expired';
 }

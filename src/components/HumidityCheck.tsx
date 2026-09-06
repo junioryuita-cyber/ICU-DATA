@@ -38,6 +38,7 @@ interface HumidityCheckProps {
   selectedMonth: number;
   currentStaff: StaffRecorder;
   records: Record<number, DailyHumidityRecord>;
+  onToast?: (toast: any) => void;
 }
 
 export const HumidityCheck: React.FC<HumidityCheckProps> = ({
@@ -45,6 +46,7 @@ export const HumidityCheck: React.FC<HumidityCheckProps> = ({
   selectedMonth,
   currentStaff,
   records,
+  onToast,
 }) => {
   const daysInMonth = getDaysInMonth(selectedYearCE, selectedMonth);
   const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
@@ -142,9 +144,25 @@ export const HumidityCheck: React.FC<HumidityCheckProps> = ({
 
       await saveHumidityRecord(selectedYearCE, thaiYear, selectedMonth, selectedDay, recordToSave);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
+      if (onToast) {
+        onToast({
+          type: 'success',
+          title: 'บันทึกความชื้นสัมพัทธ์ %RH (40-75%) สำเร็จ',
+          message: `บันทึกค่าความชื้น 14.00, 22.00, 06.00 วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firebase Firestore เรียบร้อยแล้ว`,
+          collection: 'icu_humidity',
+          docId: `${selectedYearCE}_${String(selectedMonth).padStart(2, '0')}_day${String(selectedDay).padStart(2, '0')}`,
+        });
+      }
+      setTimeout(() => setSaveSuccess(false), 4000);
+    } catch (err: any) {
       console.error('Error saving humidity:', err);
+      if (onToast) {
+        onToast({
+          type: 'error',
+          title: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
+          message: err?.message || 'ไม่สามารถเชื่อมต่อ Firestore ได้ในขณะนี้ ข้อมูลถูกบันทึกลงแคชอุปกรณ์แทน',
+        });
+      }
     } finally {
       setIsSaving(false);
     }

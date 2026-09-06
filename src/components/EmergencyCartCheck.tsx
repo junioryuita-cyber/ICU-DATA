@@ -33,6 +33,7 @@ interface EmergencyCartCheckProps {
   selectedMonth: number;
   currentStaff: StaffRecorder;
   records: Record<number, DailyEmergencyCartRecord>;
+  onToast?: (toast: any) => void;
 }
 
 export const EmergencyCartCheck: React.FC<EmergencyCartCheckProps> = ({
@@ -40,6 +41,7 @@ export const EmergencyCartCheck: React.FC<EmergencyCartCheckProps> = ({
   selectedMonth,
   currentStaff,
   records,
+  onToast,
 }) => {
   const daysInMonth = getDaysInMonth(selectedYearCE, selectedMonth);
   const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
@@ -187,9 +189,25 @@ export const EmergencyCartCheck: React.FC<EmergencyCartCheckProps> = ({
       );
 
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
+      if (onToast) {
+        onToast({
+          type: 'success',
+          title: `บันทึกรถ Emergency (${ICU_SHIFTS[activeShift].nameThai}) สำเร็จ`,
+          message: `บันทึกข้อมูล Alcohol, Adrenaline, สำลี วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firestore เรียบร้อยแล้ว`,
+          collection: 'icu_emergency_cart',
+          docId: `${selectedYearCE}_${String(selectedMonth).padStart(2, '0')}_day${String(selectedDay).padStart(2, '0')}`,
+        });
+      }
+      setTimeout(() => setSaveSuccess(false), 4000);
+    } catch (err: any) {
       console.error('Error saving emergency cart:', err);
+      if (onToast) {
+        onToast({
+          type: 'error',
+          title: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
+          message: err?.message || 'ไม่สามารถเชื่อมต่อ Firestore ได้ในขณะนี้ ข้อมูลถูกบันทึกลงแคชอุปกรณ์แทน',
+        });
+      }
     } finally {
       setIsSaving(false);
     }

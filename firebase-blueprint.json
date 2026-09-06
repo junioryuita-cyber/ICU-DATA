@@ -1,0 +1,117 @@
+{
+  "entities": {
+    "MedicationRecord": {
+      "title": "MedicationRecord",
+      "description": "Daily medication and emergency drug check records for ICU",
+      "type": "object",
+      "properties": {
+        "day": { "type": "number", "description": "Day of the month" },
+        "month": { "type": "number", "description": "Month number (1-12)" },
+        "yearCE": { "type": "number", "description": "Gregorian year CE" },
+        "yearThai": { "type": "number", "description": "Buddhist era year BE" },
+        "shifts": { "type": "object", "description": "Shifts check data" },
+        "updatedAt": { "type": "string", "description": "Timestamp of last update" }
+      },
+      "required": ["day", "month", "yearCE", "shifts"]
+    },
+    "EmergencyCartRecord": {
+      "title": "EmergencyCartRecord",
+      "description": "Daily crash cart inspection record",
+      "type": "object",
+      "properties": {
+        "day": { "type": "number", "description": "Day of the month" },
+        "month": { "type": "number", "description": "Month number (1-12)" },
+        "yearCE": { "type": "number", "description": "Gregorian year CE" },
+        "yearThai": { "type": "number", "description": "Buddhist era year BE" },
+        "shifts": { "type": "object", "description": "Shifts check data" },
+        "updatedAt": { "type": "string", "description": "Timestamp of last update" }
+      },
+      "required": ["day", "month", "yearCE", "shifts"]
+    },
+    "EmergencyBoxRecord": {
+      "title": "EmergencyBoxRecord",
+      "description": "Daily emergency box inspection record for night shift",
+      "type": "object",
+      "properties": {
+        "day": { "type": "number", "description": "Day of the month" },
+        "month": { "type": "number", "description": "Month number (1-12)" },
+        "yearCE": { "type": "number", "description": "Gregorian year CE" },
+        "yearThai": { "type": "number", "description": "Buddhist era year BE" },
+        "nightShift": { "type": "object", "description": "Night shift check data" },
+        "updatedAt": { "type": "string", "description": "Timestamp of last update" }
+      },
+      "required": ["day", "month", "yearCE", "nightShift"]
+    },
+    "FridgeTempRecord": {
+      "title": "FridgeTempRecord",
+      "description": "Daily medication refrigerator temperature log",
+      "type": "object",
+      "properties": {
+        "day": { "type": "number", "description": "Day of the month" },
+        "month": { "type": "number", "description": "Month number (1-12)" },
+        "yearCE": { "type": "number", "description": "Gregorian year CE" },
+        "yearThai": { "type": "number", "description": "Buddhist era year BE" },
+        "morning_14": { "type": "object", "description": "14:00 reading" },
+        "afternoon_22": { "type": "object", "description": "22:00 reading" },
+        "night_06": { "type": "object", "description": "06:00 reading" },
+        "dailyMax_09": { "type": "object", "description": "09:00 Max reading" },
+        "dailyMin_09": { "type": "object", "description": "09:00 Min reading" },
+        "updatedAt": { "type": "string", "description": "Timestamp of last update" }
+      },
+      "required": ["day", "month", "yearCE"]
+    },
+    "HumidityRecord": {
+      "title": "HumidityRecord",
+      "description": "Daily relative humidity log",
+      "type": "object",
+      "properties": {
+        "day": { "type": "number", "description": "Day of the month" },
+        "month": { "type": "number", "description": "Month number (1-12)" },
+        "yearCE": { "type": "number", "description": "Gregorian year CE" },
+        "yearThai": { "type": "number", "description": "Buddhist era year BE" },
+        "morning_14": { "type": "object", "description": "14:00 reading" },
+        "afternoon_22": { "type": "object", "description": "22:00 reading" },
+        "night_06": { "type": "object", "description": "06:00 reading" },
+        "updatedAt": { "type": "string", "description": "Timestamp of last update" }
+      },
+      "required": ["day", "month", "yearCE"]
+    },
+    "Staff": {
+      "title": "Staff",
+      "description": "ICU Staff and nurse recorder profiles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Staff ID" },
+        "name": { "type": "string", "description": "Full name and title" },
+        "role": { "type": "string", "description": "Position/Role" }
+      },
+      "required": ["id", "name"]
+    }
+  },
+  "firestore": {
+    "/icu_medications/{docId}": {
+      "schema": "MedicationRecord",
+      "description": "Monthly medication stock records"
+    },
+    "/icu_emergency_cart/{docId}": {
+      "schema": "EmergencyCartRecord",
+      "description": "Emergency cart inspection records"
+    },
+    "/icu_emergency_box/{docId}": {
+      "schema": "EmergencyBoxRecord",
+      "description": "Emergency box inspection records"
+    },
+    "/icu_fridge_temp/{docId}": {
+      "schema": "FridgeTempRecord",
+      "description": "Medication fridge temperature logs"
+    },
+    "/icu_humidity/{docId}": {
+      "schema": "HumidityRecord",
+      "description": "Room and fridge humidity logs"
+    },
+    "/icu_staff/{staffId}": {
+      "schema": "Staff",
+      "description": "Staff recorder records"
+    }
+  }
+}

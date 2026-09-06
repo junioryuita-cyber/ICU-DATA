@@ -16,17 +16,18 @@ import {
   DailyFridgeTempRecord,
   DailyHumidityRecord,
   StaffRecorder,
-  ExpiryAlertInfo,
   ShiftType,
+  ICU_MEDICATION_CATALOG,
+  MedicationItemRecord,
 } from '../types/icu';
 
 // Firestore collection names for ICU-DATA
-const COLL_MEDICATIONS = 'icu_medications';
-const COLL_EMERGENCY_CART = 'icu_emergency_cart';
-const COLL_EMERGENCY_BOX = 'icu_emergency_box';
-const COLL_FRIDGE_TEMP = 'icu_fridge_temp';
-const COLL_HUMIDITY = 'icu_humidity';
-const COLL_STAFF = 'icu_staff';
+export const COLL_MEDICATIONS = 'icu_medications';
+export const COLL_EMERGENCY_CART = 'icu_emergency_cart';
+export const COLL_EMERGENCY_BOX = 'icu_emergency_box';
+export const COLL_FRIDGE_TEMP = 'icu_fridge_temp';
+export const COLL_HUMIDITY = 'icu_humidity';
+export const COLL_STAFF = 'icu_staff';
 
 // Helper to calculate days in month
 export function getDaysInMonth(yearCE: number, month: number): number {
@@ -39,7 +40,7 @@ export function checkExpiryAlert(expiryDateStr?: string): {
   daysRemaining: number;
 } {
   if (!expiryDateStr) return { status: 'normal', daysRemaining: 999 };
-  
+
   const exp = new Date(expiryDateStr);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -63,6 +64,36 @@ function makeDocId(yearCE: number, month: number, day: number): string {
   return `${yearCE}_${m}_${d}`;
 }
 
+// LocalStorage helpers for zero-loss offline and instant optimistic UI
+function getLocalCache<T>(key: string, defaultVal: T): T {
+  try {
+    const raw = localStorage.getItem(`icu_${key}`);
+    return raw ? JSON.parse(raw) : defaultVal;
+  } catch {
+    return defaultVal;
+  }
+}
+
+function setLocalCache<T>(key: string, val: T): void {
+  try {
+    localStorage.setItem(`icu_${key}`, JSON.stringify(val));
+  } catch (e) {
+    console.warn('LocalStorage cache error:', e);
+  }
+}
+
+// Check Firebase Firestore connectivity
+export async function testFirestoreConnection(): Promise<{ success: boolean; message: string }> {
+  try {
+    const testDocRef = doc(db, '_health_check', 'ping');
+    await setDoc(testDocRef, { timestamp: new Date().toISOString(), status: 'online' }, { merge: true });
+    return { success: true, message: 'เชื่อมต่อ Firestore (ICU-DATA) สำเร็จ' };
+  } catch (err: any) {
+    console.warn('Firestore connection test warning:', err);
+    return { success: false, message: err?.message || 'ไม่สามารถติดต่อฐานข้อมูลได้' };
+  }
+}
+
 // 1. Staff Recorders Service
 const DEFAULT_STAFF: StaffRecorder[] = [
   { id: '1', name: 'พว. กานดา รัตนวิชัย', role: 'พยาบาลวิชาชีพชำนาญการ (ICU หัวหน้าเวร)' },
@@ -73,27 +104,34 @@ const DEFAULT_STAFF: StaffRecorder[] = [
 ];
 
 export async function getStaffList(): Promise<StaffRecorder[]> {
+  const localStaff = getLocalCache<StaffRecorder[]>('staff', DEFAULT_STAFF);
   try {
     const snap = await getDocs(collection(db, COLL_STAFF));
     if (snap.empty) {
-      // Seed default staff
       for (const st of DEFAULT_STAFF) {
         await setDoc(doc(db, COLL_STAFF, st.id), st);
       }
+      setLocalCache('staff', DEFAULT_STAFF);
       return DEFAULT_STAFF;
     }
-    return snap.docs.map((d) => d.data() as StaffRecorder);
+    const staffList = snap.docs.map((d) => d.data() as StaffRecorder);
+    setLocalCache('staff', staffList);
+    return staffList;
   } catch (err) {
-    console.warn('Firebase staff read error, using local defaults:', err);
-    return DEFAULT_STAFF;
+    console.warn('Firebase staff read error, using cached defaults:', err);
+    return localStaff.length > 0 ? localStaff : DEFAULT_STAFF;
   }
 }
 
 export async function saveStaffMember(staff: StaffRecorder): Promise<void> {
+  const current = getLocalCache<StaffRecorder[]>('staff', DEFAULT_STAFF);
+  const updated = [...current.filter((s) => s.id !== staff.id), staff];
+  setLocalCache('staff', updated);
+
   try {
     await setDoc(doc(db, COLL_STAFF, staff.id), staff);
   } catch (err) {
-    console.warn('Staff save error:', err);
+    console.warn('Staff save error in Firestore:', err);
   }
 }
 
@@ -103,21 +141,29 @@ export function subscribeMonthMedications(
   month: number,
   onUpdate: (records: Record<number, DailyMedicationRecord>) => void
 ) {
+  const cacheKey = `meds_${yearCE}_${month}`;
+  const initialData = getLocalCache<Record<number, DailyMedicationRecord>>(cacheKey, {});
+  if (Object.keys(initialData).length > 0) {
+    onUpdate(initialData);
+  }
+
   const collRef = collection(db, COLL_MEDICATIONS);
   const q = query(collRef, where('yearCE', '==', yearCE), where('month', '==', month));
 
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<number, DailyMedicationRecord> = {};
+      const map: Record<number, DailyMedicationRecord> = { ...initialData };
       snap.forEach((docSnap) => {
         const data = docSnap.data() as DailyMedicationRecord;
         map[data.day] = data;
       });
+      setLocalCache(cacheKey, map);
       onUpdate(map);
     },
     (err) => {
-      console.warn('Medications listener error:', err);
+      console.warn('Medications listener warning, using local cache:', err);
+      onUpdate(initialData);
     }
   );
 }
@@ -130,25 +176,31 @@ export async function saveShiftMedication(
   shift: ShiftType,
   shiftData: any
 ): Promise<void> {
-  const docId = makeDocId(yearCE, month, day);
-  const docRef = doc(db, COLL_MEDICATIONS, docId);
+  const cacheKey = `meds_${yearCE}_${month}`;
+  const currentMap = getLocalCache<Record<number, DailyMedicationRecord>>(cacheKey, {});
+  
+  const existingRecord: DailyMedicationRecord = currentMap[day] || {
+    day,
+    month,
+    yearCE,
+    yearThai,
+    shifts: {},
+  };
 
-  // Fetch existing or initialize
-  const existingSnap = await getDoc(docRef);
-  let existingData: DailyMedicationRecord = existingSnap.exists()
-    ? (existingSnap.data() as DailyMedicationRecord)
-    : {
-        day,
-        month,
-        yearCE,
-        yearThai,
-        shifts: {},
-      };
+  existingRecord.shifts[shift] = shiftData;
+  existingRecord.updatedAt = new Date().toISOString();
+  currentMap[day] = existingRecord;
+  setLocalCache(cacheKey, currentMap);
 
-  existingData.shifts[shift] = shiftData;
-  existingData.updatedAt = new Date().toISOString();
-
-  await setDoc(docRef, existingData, { merge: true });
+  // Sync to Firestore
+  try {
+    const docId = makeDocId(yearCE, month, day);
+    const docRef = doc(db, COLL_MEDICATIONS, docId);
+    await setDoc(docRef, existingRecord, { merge: true });
+  } catch (err) {
+    console.error('Firestore saveShiftMedication error:', err);
+    throw err;
+  }
 }
 
 // 3. Emergency Cart (Alcohol 10 pcs, Adrenaline 5 amp, Cotton 2 packs + 3-month expiry alert)
@@ -157,21 +209,29 @@ export function subscribeMonthEmergencyCart(
   month: number,
   onUpdate: (records: Record<number, DailyEmergencyCartRecord>) => void
 ) {
+  const cacheKey = `cart_${yearCE}_${month}`;
+  const initialData = getLocalCache<Record<number, DailyEmergencyCartRecord>>(cacheKey, {});
+  if (Object.keys(initialData).length > 0) {
+    onUpdate(initialData);
+  }
+
   const collRef = collection(db, COLL_EMERGENCY_CART);
   const q = query(collRef, where('yearCE', '==', yearCE), where('month', '==', month));
 
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<number, DailyEmergencyCartRecord> = {};
+      const map: Record<number, DailyEmergencyCartRecord> = { ...initialData };
       snap.forEach((docSnap) => {
         const data = docSnap.data() as DailyEmergencyCartRecord;
         map[data.day] = data;
       });
+      setLocalCache(cacheKey, map);
       onUpdate(map);
     },
     (err) => {
-      console.warn('Emergency Cart listener error:', err);
+      console.warn('Emergency Cart listener warning, using local cache:', err);
+      onUpdate(initialData);
     }
   );
 }
@@ -184,24 +244,30 @@ export async function saveShiftEmergencyCart(
   shift: ShiftType,
   shiftData: any
 ): Promise<void> {
-  const docId = makeDocId(yearCE, month, day);
-  const docRef = doc(db, COLL_EMERGENCY_CART, docId);
+  const cacheKey = `cart_${yearCE}_${month}`;
+  const currentMap = getLocalCache<Record<number, DailyEmergencyCartRecord>>(cacheKey, {});
+  
+  const existingRecord: DailyEmergencyCartRecord = currentMap[day] || {
+    day,
+    month,
+    yearCE,
+    yearThai,
+    shifts: {},
+  };
 
-  const existingSnap = await getDoc(docRef);
-  let existingData: DailyEmergencyCartRecord = existingSnap.exists()
-    ? (existingSnap.data() as DailyEmergencyCartRecord)
-    : {
-        day,
-        month,
-        yearCE,
-        yearThai,
-        shifts: {},
-      };
+  existingRecord.shifts[shift] = shiftData;
+  existingRecord.updatedAt = new Date().toISOString();
+  currentMap[day] = existingRecord;
+  setLocalCache(cacheKey, currentMap);
 
-  existingData.shifts[shift] = shiftData;
-  existingData.updatedAt = new Date().toISOString();
-
-  await setDoc(docRef, existingData, { merge: true });
+  try {
+    const docId = makeDocId(yearCE, month, day);
+    const docRef = doc(db, COLL_EMERGENCY_CART, docId);
+    await setDoc(docRef, existingRecord, { merge: true });
+  } catch (err) {
+    console.error('Firestore saveShiftEmergencyCart error:', err);
+    throw err;
+  }
 }
 
 // 4. Emergency Box (Daily once in Night shift 00.30-08.30)
@@ -210,21 +276,29 @@ export function subscribeMonthEmergencyBox(
   month: number,
   onUpdate: (records: Record<number, DailyEmergencyBoxRecord>) => void
 ) {
+  const cacheKey = `box_${yearCE}_${month}`;
+  const initialData = getLocalCache<Record<number, DailyEmergencyBoxRecord>>(cacheKey, {});
+  if (Object.keys(initialData).length > 0) {
+    onUpdate(initialData);
+  }
+
   const collRef = collection(db, COLL_EMERGENCY_BOX);
   const q = query(collRef, where('yearCE', '==', yearCE), where('month', '==', month));
 
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<number, DailyEmergencyBoxRecord> = {};
+      const map: Record<number, DailyEmergencyBoxRecord> = { ...initialData };
       snap.forEach((docSnap) => {
         const data = docSnap.data() as DailyEmergencyBoxRecord;
         map[data.day] = data;
       });
+      setLocalCache(cacheKey, map);
       onUpdate(map);
     },
     (err) => {
-      console.warn('Emergency Box listener error:', err);
+      console.warn('Emergency Box listener warning, using local cache:', err);
+      onUpdate(initialData);
     }
   );
 }
@@ -236,8 +310,8 @@ export async function saveEmergencyBoxRecord(
   day: number,
   nightShiftData: any
 ): Promise<void> {
-  const docId = makeDocId(yearCE, month, day);
-  const docRef = doc(db, COLL_EMERGENCY_BOX, docId);
+  const cacheKey = `box_${yearCE}_${month}`;
+  const currentMap = getLocalCache<Record<number, DailyEmergencyBoxRecord>>(cacheKey, {});
 
   const record: DailyEmergencyBoxRecord = {
     day,
@@ -248,7 +322,17 @@ export async function saveEmergencyBoxRecord(
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(docRef, record, { merge: true });
+  currentMap[day] = record;
+  setLocalCache(cacheKey, currentMap);
+
+  try {
+    const docId = makeDocId(yearCE, month, day);
+    const docRef = doc(db, COLL_EMERGENCY_BOX, docId);
+    await setDoc(docRef, record, { merge: true });
+  } catch (err) {
+    console.error('Firestore saveEmergencyBoxRecord error:', err);
+    throw err;
+  }
 }
 
 // 5. Medication Fridge Temperature (14.00, 22.00, 06.00, Max/Min 09.00)
@@ -257,21 +341,29 @@ export function subscribeMonthFridgeTemp(
   month: number,
   onUpdate: (records: Record<number, DailyFridgeTempRecord>) => void
 ) {
+  const cacheKey = `fridge_${yearCE}_${month}`;
+  const initialData = getLocalCache<Record<number, DailyFridgeTempRecord>>(cacheKey, {});
+  if (Object.keys(initialData).length > 0) {
+    onUpdate(initialData);
+  }
+
   const collRef = collection(db, COLL_FRIDGE_TEMP);
   const q = query(collRef, where('yearCE', '==', yearCE), where('month', '==', month));
 
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<number, DailyFridgeTempRecord> = {};
+      const map: Record<number, DailyFridgeTempRecord> = { ...initialData };
       snap.forEach((docSnap) => {
         const data = docSnap.data() as DailyFridgeTempRecord;
         map[data.day] = data;
       });
+      setLocalCache(cacheKey, map);
       onUpdate(map);
     },
     (err) => {
-      console.warn('Fridge Temp listener error:', err);
+      console.warn('Fridge Temp listener warning, using local cache:', err);
+      onUpdate(initialData);
     }
   );
 }
@@ -283,23 +375,20 @@ export async function saveFridgeTempRecord(
   day: number,
   partialData: Partial<DailyFridgeTempRecord>
 ): Promise<void> {
-  const docId = makeDocId(yearCE, month, day);
-  const docRef = doc(db, COLL_FRIDGE_TEMP, docId);
+  const cacheKey = `fridge_${yearCE}_${month}`;
+  const currentMap = getLocalCache<Record<number, DailyFridgeTempRecord>>(cacheKey, {});
 
-  const existingSnap = await getDoc(docRef);
-  const baseData: DailyFridgeTempRecord = existingSnap.exists()
-    ? (existingSnap.data() as DailyFridgeTempRecord)
-    : {
-        day,
-        month,
-        yearCE,
-        yearThai,
-        morning_14: { temp: null, recorderName: '', status: 'unrecorded' },
-        afternoon_22: { temp: null, recorderName: '', status: 'unrecorded' },
-        night_06: { temp: null, recorderName: '', status: 'unrecorded' },
-        dailyMax_09: { temp: null, recorderName: '' },
-        dailyMin_09: { temp: null, recorderName: '' },
-      };
+  const baseData: DailyFridgeTempRecord = currentMap[day] || {
+    day,
+    month,
+    yearCE,
+    yearThai,
+    morning_14: { temp: null, recorderName: '', status: 'unrecorded' },
+    afternoon_22: { temp: null, recorderName: '', status: 'unrecorded' },
+    night_06: { temp: null, recorderName: '', status: 'unrecorded' },
+    dailyMax_09: { temp: null, recorderName: '' },
+    dailyMin_09: { temp: null, recorderName: '' },
+  };
 
   const merged: DailyFridgeTempRecord = {
     ...baseData,
@@ -311,7 +400,17 @@ export async function saveFridgeTempRecord(
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(docRef, merged, { merge: true });
+  currentMap[day] = merged;
+  setLocalCache(cacheKey, currentMap);
+
+  try {
+    const docId = makeDocId(yearCE, month, day);
+    const docRef = doc(db, COLL_FRIDGE_TEMP, docId);
+    await setDoc(docRef, merged, { merge: true });
+  } catch (err) {
+    console.error('Firestore saveFridgeTempRecord error:', err);
+    throw err;
+  }
 }
 
 // 6. Humidity Monitoring (%RH: 14.00, 22.00, 06.00)
@@ -320,21 +419,29 @@ export function subscribeMonthHumidity(
   month: number,
   onUpdate: (records: Record<number, DailyHumidityRecord>) => void
 ) {
+  const cacheKey = `humidity_${yearCE}_${month}`;
+  const initialData = getLocalCache<Record<number, DailyHumidityRecord>>(cacheKey, {});
+  if (Object.keys(initialData).length > 0) {
+    onUpdate(initialData);
+  }
+
   const collRef = collection(db, COLL_HUMIDITY);
   const q = query(collRef, where('yearCE', '==', yearCE), where('month', '==', month));
 
   return onSnapshot(
     q,
     (snap) => {
-      const map: Record<number, DailyHumidityRecord> = {};
+      const map: Record<number, DailyHumidityRecord> = { ...initialData };
       snap.forEach((docSnap) => {
         const data = docSnap.data() as DailyHumidityRecord;
         map[data.day] = data;
       });
+      setLocalCache(cacheKey, map);
       onUpdate(map);
     },
     (err) => {
-      console.warn('Humidity listener error:', err);
+      console.warn('Humidity listener warning, using local cache:', err);
+      onUpdate(initialData);
     }
   );
 }
@@ -346,21 +453,18 @@ export async function saveHumidityRecord(
   day: number,
   partialData: Partial<DailyHumidityRecord>
 ): Promise<void> {
-  const docId = makeDocId(yearCE, month, day);
-  const docRef = doc(db, COLL_HUMIDITY, docId);
+  const cacheKey = `humidity_${yearCE}_${month}`;
+  const currentMap = getLocalCache<Record<number, DailyHumidityRecord>>(cacheKey, {});
 
-  const existingSnap = await getDoc(docRef);
-  const baseData: DailyHumidityRecord = existingSnap.exists()
-    ? (existingSnap.data() as DailyHumidityRecord)
-    : {
-        day,
-        month,
-        yearCE,
-        yearThai,
-        morning_14: { humidity: null, recorderName: '', status: 'unrecorded' },
-        afternoon_22: { humidity: null, recorderName: '', status: 'unrecorded' },
-        night_06: { humidity: null, recorderName: '', status: 'unrecorded' },
-      };
+  const baseData: DailyHumidityRecord = currentMap[day] || {
+    day,
+    month,
+    yearCE,
+    yearThai,
+    morning_14: { humidity: null, recorderName: '', status: 'unrecorded' },
+    afternoon_22: { humidity: null, recorderName: '', status: 'unrecorded' },
+    night_06: { humidity: null, recorderName: '', status: 'unrecorded' },
+  };
 
   const merged: DailyHumidityRecord = {
     ...baseData,
@@ -372,7 +476,17 @@ export async function saveHumidityRecord(
     updatedAt: new Date().toISOString(),
   };
 
-  await setDoc(docRef, merged, { merge: true });
+  currentMap[day] = merged;
+  setLocalCache(cacheKey, currentMap);
+
+  try {
+    const docId = makeDocId(yearCE, month, day);
+    const docRef = doc(db, COLL_HUMIDITY, docId);
+    await setDoc(docRef, merged, { merge: true });
+  } catch (err) {
+    console.error('Firestore saveHumidityRecord error:', err);
+    throw err;
+  }
 }
 
 // Sample Data Generator to populate current or chosen month for immediate evaluation
@@ -393,13 +507,43 @@ export async function generateSampleMonthData(
   const warningExpiry = new Date(Date.now() + 65 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   const normalExpiry = new Date(Date.now() + 240 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+  const medsMap: Record<number, DailyMedicationRecord> = {};
+  const cartMap: Record<number, DailyEmergencyCartRecord> = {};
+  const boxMap: Record<number, DailyEmergencyBoxRecord> = {};
+  const fridgeMap: Record<number, DailyFridgeTempRecord> = {};
+  const humMap: Record<number, DailyHumidityRecord> = {};
+
   for (let day = 1; day <= daysToFill; day++) {
     const docId = makeDocId(yearCE, month, day);
     const nurse1 = names[(day + 0) % names.length];
     const nurse2 = names[(day + 1) % names.length];
     const nurse3 = names[(day + 2) % names.length];
 
-    // 1. Medication
+    // 1. Medication (29 items)
+    const generateShiftItems = (isAfternoonDay3: boolean): Record<string, MedicationItemRecord> => {
+      const itemsMap: Record<string, MedicationItemRecord> = {};
+      ICU_MEDICATION_CATALOG.forEach((med) => {
+        let count = med.targetCount;
+        let notes = 'ปกติ ครบตามเกณฑ์';
+        let status: 'complete' | 'low' | 'empty' = 'complete';
+
+        if (isAfternoonDay3 && med.id === 'adrenaline') {
+          count = 9;
+          notes = 'ใช้ 1 amp ใน CPR เบิกชดเชยแล้ว';
+          status = 'low';
+        }
+
+        itemsMap[med.id] = {
+          remainingCount: count,
+          targetCount: med.targetCount,
+          unit: med.unit,
+          notes,
+          status,
+        };
+      });
+      return itemsMap;
+    };
+
     const medRecord: DailyMedicationRecord = {
       day,
       month,
@@ -410,66 +554,30 @@ export async function generateSampleMonthData(
           recorderName: nurse1,
           recorderRole: 'พยาบาลวิชาชีพ',
           checkedAt: `${yearCE}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 09:15:00`,
-          adenosine: {
-            remainingCount: 5,
-            targetCount: 5,
-            unit: 'amp',
-            notes: 'สภาพสมบูรณ์ พร้อมใช้',
-            status: 'complete',
-          },
-          adrenaline: {
-            remainingCount: 10,
-            targetCount: 10,
-            unit: 'amp',
-            notes: 'ตรวจสอบแล้ว ครบตามเกณฑ์',
-            status: 'complete',
-          },
+          items: generateShiftItems(false),
+          overallNotes: 'ตรวจสอบครบ 29 รายการ สภาพสมบูรณ์',
           isComplete: true,
         },
         afternoon: {
           recorderName: nurse2,
           recorderRole: 'พยาบาลวิชาชีพ',
           checkedAt: `${yearCE}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 17:00:00`,
-          adenosine: {
-            remainingCount: 5,
-            targetCount: 5,
-            unit: 'amp',
-            notes: 'ปกติ',
-            status: 'complete',
-          },
-          adrenaline: {
-            remainingCount: day === 3 ? 9 : 10,
-            targetCount: 10,
-            unit: 'amp',
-            notes: day === 3 ? 'ใช้ 1 amp ใน CPR เบิกชดเชยแล้ว' : 'ปกติ',
-            status: day === 3 ? 'low' : 'complete',
-          },
+          items: generateShiftItems(day === 3),
+          overallNotes: day === 3 ? 'มีการใช้ยา CPR ระหว่างเวร' : 'ส่งเวรเรียบร้อย',
           isComplete: true,
         },
         night: {
           recorderName: nurse3,
           recorderRole: 'พยาบาลวิชาชีพ',
           checkedAt: `${yearCE}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 01:20:00`,
-          adenosine: {
-            remainingCount: 5,
-            targetCount: 5,
-            unit: 'amp',
-            notes: 'พร้อมใช้งาน',
-            status: 'complete',
-          },
-          adrenaline: {
-            remainingCount: 10,
-            targetCount: 10,
-            unit: 'amp',
-            notes: 'เบิกเติมครบ 10 amp แล้ว',
-            status: 'complete',
-          },
+          items: generateShiftItems(false),
+          overallNotes: 'พร้อมใช้งานตลอด 24 ชั่วโมง',
           isComplete: true,
         },
       },
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, COLL_MEDICATIONS, docId), medRecord);
+    medsMap[day] = medRecord;
 
     // 2. Emergency Cart
     const cartRecord: DailyEmergencyCartRecord = {
@@ -526,7 +634,7 @@ export async function generateSampleMonthData(
       },
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, COLL_EMERGENCY_CART, docId), cartRecord);
+    cartMap[day] = cartRecord;
 
     // 3. Emergency Box (Daily once in Night shift)
     const boxRecord: DailyEmergencyBoxRecord = {
@@ -552,7 +660,7 @@ export async function generateSampleMonthData(
       },
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, COLL_EMERGENCY_BOX, docId), boxRecord);
+    boxMap[day] = boxRecord;
 
     // 4. Fridge Temp (Range 2 - 8 °C, Recorded at 14.00, 22.00, 06.00 + Max/Min 09.00)
     const baseT = 4.2 + Math.sin(day * 0.7) * 1.5;
@@ -597,7 +705,7 @@ export async function generateSampleMonthData(
       },
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, COLL_FRIDGE_TEMP, docId), tempRecord);
+    fridgeMap[day] = tempRecord;
 
     // 5. Humidity (Range 40 - 75 %RH, Recorded at 14.00, 22.00, 06.00)
     const baseH = 55 + Math.cos(day * 0.5) * 8;
@@ -630,6 +738,24 @@ export async function generateSampleMonthData(
       },
       updatedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, COLL_HUMIDITY, docId), humRecord);
+    humMap[day] = humRecord;
+
+    // Async push to firestore with silent error handling
+    try {
+      await setDoc(doc(db, COLL_MEDICATIONS, docId), medRecord);
+      await setDoc(doc(db, COLL_EMERGENCY_CART, docId), cartRecord);
+      await setDoc(doc(db, COLL_EMERGENCY_BOX, docId), boxRecord);
+      await setDoc(doc(db, COLL_FRIDGE_TEMP, docId), tempRecord);
+      await setDoc(doc(db, COLL_HUMIDITY, docId), humRecord);
+    } catch (e) {
+      console.warn('Sample data doc write warning:', e);
+    }
   }
+
+  // Save full maps to cache
+  setLocalCache(`meds_${yearCE}_${month}`, medsMap);
+  setLocalCache(`cart_${yearCE}_${month}`, cartMap);
+  setLocalCache(`box_${yearCE}_${month}`, boxMap);
+  setLocalCache(`fridge_${yearCE}_${month}`, fridgeMap);
+  setLocalCache(`humidity_${yearCE}_${month}`, humMap);
 }

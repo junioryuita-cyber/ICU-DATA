@@ -23,6 +23,7 @@ interface HeaderProps {
   onMonthChange: (month: number) => void;
   currentStaff: StaffRecorder;
   onOpenStaffModal: () => void;
+  onOpenDbModal: () => void;
   activeTab: string;
   onSelectTab: (tabId: string) => void;
   onGenerateSampleData: () => void;
@@ -39,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onMonthChange,
   currentStaff,
   onOpenStaffModal,
+  onOpenDbModal,
   activeTab,
   onSelectTab,
   onGenerateSampleData,
@@ -77,10 +79,16 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full border border-blue-200">
                   ระบบงานและแดชบอร์ด ICU
                 </span>
-                <div className="hidden sm:flex items-center gap-1 text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <Database className="w-3 h-3" />
-                  <span>Firebase: ICU-DATA</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={onOpenDbModal}
+                  className="inline-flex items-center gap-1.5 text-xs text-emerald-700 font-semibold bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 transition-colors cursor-pointer shadow-2xs"
+                  title="คลิกเพื่อดูสถานะการเชื่อมต่อและการบันทึก Firestore"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <Database className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>บันทึกลง Cloud (Firestore): ออนไลน์</span>
+                </button>
               </div>
               <p className="text-xs text-slate-500">
                 ระบบตรวจเช็คสต็อกยา เวชภัณฑ์ รถ Emergency อุณหภูมิ และความชื้นสัมพัทธ์

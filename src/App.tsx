@@ -38,6 +38,8 @@ import { DashboardSupplies } from './components/DashboardSupplies';
 import { DashboardEnvironment } from './components/DashboardEnvironment';
 import { PrintReportModal } from './components/PrintReportModal';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
+import { DbStatusModal } from './components/DbStatusModal';
+import { ToastContainer, ToastMessage } from './components/Toast';
 import confetti from 'canvas-confetti';
 import { Activity, Sparkles, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
 
@@ -80,6 +82,25 @@ export default function App() {
 
   // Syncing state
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Db Status Modal
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+
+  // Toast System
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showToast = (toast: Omit<ToastMessage, 'id'>) => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    const newToast: ToastMessage = { ...toast, id };
+    setToasts((prev) => [...prev, newToast]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Firestore Data State
   const [medRecords, setMedRecords] = useState<Record<number, DailyMedicationRecord>>({});
@@ -237,6 +258,7 @@ export default function App() {
         onMonthChange={setSelectedMonth}
         currentStaff={currentStaff}
         onOpenStaffModal={() => setIsStaffModalOpen(true)}
+        onOpenDbModal={() => setIsDbModalOpen(true)}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
         onGenerateSampleData={handleGenerateSampleData}
@@ -275,6 +297,7 @@ export default function App() {
             selectedMonth={selectedMonth}
             currentStaff={currentStaff}
             records={medRecords}
+            onToast={showToast}
           />
         )}
 
@@ -284,6 +307,7 @@ export default function App() {
             selectedMonth={selectedMonth}
             currentStaff={currentStaff}
             records={cartRecords}
+            onToast={showToast}
           />
         )}
 
@@ -293,6 +317,7 @@ export default function App() {
             selectedMonth={selectedMonth}
             currentStaff={currentStaff}
             records={boxRecords}
+            onToast={showToast}
           />
         )}
 
@@ -302,6 +327,7 @@ export default function App() {
             selectedMonth={selectedMonth}
             currentStaff={currentStaff}
             records={tempRecords}
+            onToast={showToast}
           />
         )}
 
@@ -311,6 +337,7 @@ export default function App() {
             selectedMonth={selectedMonth}
             currentStaff={currentStaff}
             records={humidityRecords}
+            onToast={showToast}
           />
         )}
       </main>
@@ -324,13 +351,30 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-slate-400">พ.ศ. 2569 – 2580 (2026 - 2037)</span>
-            <span className="inline-flex items-center gap-1 text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+            <button
+              onClick={() => setIsDbModalOpen(true)}
+              className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 cursor-pointer transition-colors"
+            >
               <Database className="w-3 h-3" />
-              <span>Firebase Connected</span>
-            </span>
+              <span>Firebase Firestore Connected</span>
+            </button>
           </div>
         </div>
       </footer>
+
+      {/* Database Status & Health Modal */}
+      <DbStatusModal
+        isOpen={isDbModalOpen}
+        onClose={() => setIsDbModalOpen(false)}
+        medsCount={Object.keys(medRecords).length}
+        cartCount={Object.keys(cartRecords).length}
+        boxCount={Object.keys(boxRecords).length}
+        tempCount={Object.keys(tempRecords).length}
+        humCount={Object.keys(humidityRecords).length}
+      />
+
+      {/* Toast Notification Container */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
       {/* Staff / Recorder Management Modal */}
       <StaffModal

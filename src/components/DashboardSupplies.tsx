@@ -7,6 +7,8 @@ import {
   THAI_YEARS,
   ICU_SHIFTS,
   ShiftType,
+  ICU_MEDICATION_CATALOG,
+  MedicationItemRecord,
 } from '../types/icu';
 import { getDaysInMonth, checkExpiryAlert } from '../services/icuService';
 import {
@@ -42,7 +44,6 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
   medRecords,
   cartRecords,
   boxRecords,
-  onSelectDayForEdit,
   onOpenPrintModal,
 }) => {
   const daysInMonth = getDaysInMonth(selectedYearCE, selectedMonth);
@@ -66,22 +67,27 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
       const cart = cartRecords[d];
       const box = boxRecords[d];
 
-      // Med checks
-      ['morning', 'afternoon', 'night'].forEach((sh) => {
-        const mShift = med?.shifts?.[sh as ShiftType];
+      // Med checks across 29 items
+      (['morning', 'afternoon', 'night'] as ShiftType[]).forEach((sh) => {
+        const mShift = med?.shifts?.[sh];
         if (mShift?.isComplete) {
           medCompletedShifts++;
-          if (mShift.adenosine?.remainingCount !== null && mShift.adenosine.remainingCount < 5) lowStockCount++;
-          if (mShift.adrenaline?.remainingCount !== null && mShift.adrenaline.remainingCount < 10) lowStockCount++;
+          if (mShift.items) {
+            (Object.values(mShift.items) as MedicationItemRecord[]).forEach((item) => {
+              if (item.remainingCount !== null && item.remainingCount < item.targetCount) {
+                lowStockCount++;
+              }
+            });
+          }
         }
 
-        const cShift = cart?.shifts?.[sh as ShiftType];
+        const cShift = cart?.shifts?.[sh];
         if (cShift?.isComplete) {
           cartCompletedShifts++;
           if (cShift.alcohol70?.remainingCount !== null && cShift.alcohol70.remainingCount < 10) lowStockCount++;
           if (cShift.adrenaline?.remainingCount !== null && cShift.adrenaline.remainingCount < 5) lowStockCount++;
           if (cShift.cottonBall?.remainingCount !== null && cShift.cottonBall.remainingCount < 2) lowStockCount++;
-          
+
           if (cShift.cottonBall?.expiryDate) {
             const exp = checkExpiryAlert(cShift.cottonBall.expiryDate);
             if (exp.status === 'warning_3months' || exp.status === 'expired') {
@@ -118,10 +124,10 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
     };
   }, [daysInMonth, medRecords, cartRecords, boxRecords]);
 
-  // Export to CSV helper
+  // Export to CSV
   const handleExportCSV = () => {
     const rows = [
-      ['ICU-DATA สรุปยา เวชภัณฑ์ รถ Emergency และ Emergency Box ประจำเดือน', `${monthObj.name} พ.ศ. ${thaiYear}`],
+      ['ICU-DATA สรุปยา 29 รายการ รถ Emergency และ Emergency Box ประจำเดือน', `${monthObj.name} พ.ศ. ${thaiYear}`],
       ['วันที่', 'เวร', 'งาน', 'รายการ', 'เกณฑ์', 'คงเหลือ', 'หน่วย', 'สถานะ', 'ผู้บันทึก', 'หมายเหตุ'],
     ];
 
@@ -130,30 +136,113 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
       const cart = cartRecords[d];
       const box = boxRecords[d];
 
-      ['morning', 'afternoon', 'night'].forEach((sh) => {
-        const shName = ICU_SHIFTS[sh as ShiftType].nameThai;
-        const m = med?.shifts?.[sh as ShiftType];
-        if (m) {
-          rows.push([`${d}/${selectedMonth}/${thaiYear}`, shName, 'ยาและเวชภัณฑ์', 'Adenosine 6mg/ml', '5', String(m.adenosine.remainingCount ?? '-'), 'amp', m.adenosine.status, m.recorderName, m.adenosine.notes || '']);
-          rows.push([`${d}/${selectedMonth}/${thaiYear}`, shName, 'ยาและเวชภัณฑ์', 'Adrenaline 1mg/ml', '10', String(m.adrenaline.remainingCount ?? '-'), 'amp', m.adrenaline.status, m.recorderName, m.adrenaline.notes || '']);
+      (['morning', 'afternoon', 'night'] as ShiftType[]).forEach((sh) => {
+        const shName = ICU_SHIFTS[sh].nameThai;
+        const m = med?.shifts?.[sh];
+        if (m && m.items) {
+          ICU_MEDICATION_CATALOG.forEach((catMed) => {
+            const item = m.items[catMed.id];
+            if (item) {
+              rows.push([
+                `${d}/${selectedMonth}/${thaiYear}`,
+                shName,
+                'ยาและเวชภัณฑ์ (29 รายการ)',
+                catMed.name,
+                String(catMed.targetCount),
+                String(item.remainingCount ?? '-'),
+                catMed.unit,
+                item.status,
+                m.recorderName,
+                item.notes || '',
+              ]);
+            }
+          });
         }
-        const c = cart?.shifts?.[sh as ShiftType];
+        const c = cart?.shifts?.[sh];
         if (c) {
-          rows.push([`${d}/${selectedMonth}/${thaiYear}`, shName, 'รถ Emergency', '70% Alcohol', '10', String(c.alcohol70.remainingCount ?? '-'), 'แผ่น', c.alcohol70.status, c.recorderName, c.alcohol70.notes || '']);
-          rows.push([`${d}/${selectedMonth}/${thaiYear}`, shName, 'รถ Emergency', 'Adrenaline 1mg/ml', '5', String(c.adrenaline.remainingCount ?? '-'), 'amp', c.adrenaline.status, c.recorderName, c.adrenaline.notes || '']);
-          rows.push([`${d}/${selectedMonth}/${thaiYear}`, shName, 'รถ Emergency', `สำลี 5 ก้อน (EXP: ${c.cottonBall.expiryDate || '-'})`, '2', String(c.cottonBall.remainingCount ?? '-'), 'ห่อ', c.cottonBall.status, c.recorderName, c.cottonBall.notes || '']);
+          rows.push([
+            `${d}/${selectedMonth}/${thaiYear}`,
+            shName,
+            'รถ Emergency',
+            '70% Alcohol',
+            '10',
+            String(c.alcohol70.remainingCount ?? '-'),
+            'แผ่น',
+            c.alcohol70.status,
+            c.recorderName,
+            c.alcohol70.notes || '',
+          ]);
+          rows.push([
+            `${d}/${selectedMonth}/${thaiYear}`,
+            shName,
+            'รถ Emergency',
+            'Adrenaline 1mg/ml',
+            '5',
+            String(c.adrenaline.remainingCount ?? '-'),
+            'amp',
+            c.adrenaline.status,
+            c.recorderName,
+            c.adrenaline.notes || '',
+          ]);
+          rows.push([
+            `${d}/${selectedMonth}/${thaiYear}`,
+            shName,
+            'รถ Emergency',
+            `สำลี 5 ก้อน (EXP: ${c.cottonBall.expiryDate || '-'})`,
+            '2',
+            String(c.cottonBall.remainingCount ?? '-'),
+            'ห่อ',
+            c.cottonBall.status,
+            c.recorderName,
+            c.cottonBall.notes || '',
+          ]);
         }
       });
 
       const b = box?.nightShift;
       if (b) {
-        rows.push([`${d}/${selectedMonth}/${thaiYear}`, 'เวรดึก', 'Emergency Box', '70% Alcohol', '10', String(b.alcohol70.remainingCount ?? '-'), 'แผ่น', b.alcohol70.status, b.recorderName, b.alcohol70.notes || '']);
-        rows.push([`${d}/${selectedMonth}/${thaiYear}`, 'เวรดึก', 'Emergency Box', 'Adrenaline 1mg/ml', '5', String(b.adrenaline.remainingCount ?? '-'), 'amp', b.adrenaline.status, b.recorderName, b.adrenaline.notes || '']);
-        rows.push([`${d}/${selectedMonth}/${thaiYear}`, 'เวรดึก', 'Emergency Box', `สำลี 5 ก้อน (EXP: ${b.cottonBall.expiryDate || '-'})`, '2', String(b.cottonBall.remainingCount ?? '-'), 'ห่อ', b.cottonBall.status, b.recorderName, b.cottonBall.notes || '']);
+        rows.push([
+          `${d}/${selectedMonth}/${thaiYear}`,
+          'เวรดึก',
+          'Emergency Box',
+          '70% Alcohol',
+          '10',
+          String(b.alcohol70.remainingCount ?? '-'),
+          'แผ่น',
+          b.alcohol70.status,
+          b.recorderName,
+          b.alcohol70.notes || '',
+        ]);
+        rows.push([
+          `${d}/${selectedMonth}/${thaiYear}`,
+          'เวรดึก',
+          'Emergency Box',
+          'Adrenaline 1mg/ml',
+          '5',
+          String(b.adrenaline.remainingCount ?? '-'),
+          'amp',
+          b.adrenaline.status,
+          b.recorderName,
+          b.adrenaline.notes || '',
+        ]);
+        rows.push([
+          `${d}/${selectedMonth}/${thaiYear}`,
+          'เวรดึก',
+          'Emergency Box',
+          `สำลี 5 ก้อน (EXP: ${b.cottonBall.expiryDate || '-'})`,
+          '2',
+          String(b.cottonBall.remainingCount ?? '-'),
+          'ห่อ',
+          b.cottonBall.status,
+          b.recorderName,
+          b.cottonBall.notes || '',
+        ]);
       }
     }
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map((e) => e.map((val) => `"${val}"`).join(',')).join('\n');
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      rows.map((e) => e.map((val) => `"${val}"`).join(',')).join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
@@ -170,10 +259,10 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
         <div>
           <div className="flex items-center gap-2 text-blue-700 font-semibold text-sm mb-1">
             <Table className="w-4 h-4 text-blue-600" />
-            <span>งานที่ 7: Dashboard สรุป ตรวจสอบยาและเวชภัณฑ์, รถ Emergency, Emergency Box</span>
+            <span>Dashboard สรุป ยาและเวชภัณฑ์ (29 รายการ), รถ Emergency, Emergency Box</span>
           </div>
           <h2 className="text-xl font-bold text-slate-800">
-            ตารางสรุปการตรวจเช็คประจำเดือน — {monthObj.name} พ.ศ. {thaiYear}
+            ตารางสรุปการตรวจเช็คสต็อกประจำเดือน — {monthObj.name} พ.ศ. {thaiYear}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             สรุปข้อมูลรายวัน 3 กะ: เช้า (08.30-16.30), บ่าย (16.30-00.30), ดึก (00.30-08.30) และ Emergency Box
@@ -210,9 +299,10 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-          <div className="text-xs font-semibold text-slate-400">บันทึกยาและเวชภัณฑ์</div>
+          <div className="text-xs font-semibold text-slate-400">บันทึกยา (29 รายการ)</div>
           <div className="text-2xl font-black text-indigo-700 mt-1">
-            {metrics.medCompletedShifts} <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
+            {metrics.medCompletedShifts}{' '}
+            <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5">เช้า, บ่าย, ดึก</div>
         </div>
@@ -220,14 +310,19 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="text-xs font-semibold text-slate-400">บันทึกรถ Emergency</div>
           <div className="text-2xl font-black text-rose-700 mt-1">
-            {metrics.cartCompletedShifts} <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
+            {metrics.cartCompletedShifts}{' '}
+            <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5">เช้า, บ่าย, ดึก</div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="text-xs font-semibold text-slate-400">เตือนวันหมดอายุ (&le; 3 ด.)</div>
-          <div className={`text-2xl font-black mt-1 ${metrics.expiringItemsCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+          <div
+            className={`text-2xl font-black mt-1 ${
+              metrics.expiringItemsCount > 0 ? 'text-amber-600' : 'text-emerald-600'
+            }`}
+          >
             {metrics.expiringItemsCount} <span className="text-xs font-normal text-slate-500">รายการ</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5">สำลี 5 ก้อน ในรถ/กล่องฉุกเฉิน</div>
@@ -236,7 +331,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
 
       {/* Filter tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 px-1">
             <Filter className="w-3.5 h-3.5" /> มุมมอง:
           </span>
@@ -254,7 +349,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
               activeFilter === 'med' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            💊 เฉพาะยาและเวชภัณฑ์
+            💊 เฉพาะยา 29 รายการ
           </button>
           <button
             onClick={() => setActiveFilter('cart')}
@@ -329,7 +424,9 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                     cart?.shifts?.afternoon?.recorderName,
                     cart?.shifts?.night?.recorderName,
                     box?.nightShift?.recorderName,
-                  ].filter(Boolean).join(' ');
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
                   return dayStr.includes(searchQuery) || nurses.includes(searchQuery);
                 })
                 .map((d) => {
@@ -337,7 +434,6 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                   const cart = cartRecords[d];
                   const box = boxRecords[d];
 
-                  // Count completion
                   const medMorning = med?.shifts?.morning;
                   const medAfternoon = med?.shifts?.afternoon;
                   const medNight = med?.shifts?.night;
@@ -366,13 +462,32 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                     cartNight?.isComplete ||
                     boxNight?.isComplete;
 
+                  // Summary counts of items
+                  const getMedCountText = (mShift: any) => {
+                    if (!mShift) return null;
+                    if (mShift.items) {
+                      const total = ICU_MEDICATION_CATALOG.length;
+                      let complete = 0;
+                      ICU_MEDICATION_CATALOG.forEach((item) => {
+                        const rec = mShift.items[item.id];
+                        if (rec && rec.remainingCount !== null && rec.remainingCount >= item.targetCount) {
+                          complete++;
+                        }
+                      });
+                      return `💊 ยา 29 รายการ: ครบ ${complete}/${total}`;
+                    }
+                    return '💊 ยา: ตรวจแล้ว';
+                  };
+
                   return (
                     <tr key={d} className="hover:bg-slate-50/80 transition-colors">
                       {/* Sticky Date */}
                       <td className="py-3 px-3 font-bold text-slate-900 sticky left-0 bg-white shadow-xs">
                         <div className="flex flex-col">
                           <span className="text-sm font-extrabold text-blue-700">วันที่ {d}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">{monthObj.short} {thaiYear}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {monthObj.short} {thaiYear}
+                          </span>
                         </div>
                       </td>
 
@@ -381,7 +496,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                         {(activeFilter === 'all' || activeFilter === 'med') && medMorning && (
                           <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-200/60 mb-1.5">
                             <div className="flex items-center justify-between font-semibold text-blue-900 text-[11px]">
-                              <span>💊 ยา: {medMorning.adenosine.remainingCount}/5 | {medMorning.adrenaline.remainingCount}/10</span>
+                              <span>{getMedCountText(medMorning)}</span>
                               <span className="text-emerald-700">ครบ</span>
                             </div>
                             <div className="text-[10px] text-slate-500">ผู้ตรวจ: {medMorning.recorderName}</div>
@@ -412,7 +527,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                         {(activeFilter === 'all' || activeFilter === 'med') && medAfternoon && (
                           <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-200/60 mb-1.5">
                             <div className="flex items-center justify-between font-semibold text-blue-900 text-[11px]">
-                              <span>💊 ยา: {medAfternoon.adenosine.remainingCount}/5 | {medAfternoon.adrenaline.remainingCount}/10</span>
+                              <span>{getMedCountText(medAfternoon)}</span>
                               <span className="text-emerald-700">ครบ</span>
                             </div>
                             <div className="text-[10px] text-slate-500">ผู้ตรวจ: {medAfternoon.recorderName}</div>
@@ -438,7 +553,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
                         {(activeFilter === 'all' || activeFilter === 'med') && medNight && (
                           <div className="bg-blue-50/60 p-2 rounded-lg border border-blue-200/60 mb-1.5">
                             <div className="flex items-center justify-between font-semibold text-blue-900 text-[11px]">
-                              <span>💊 ยา: {medNight.adenosine.remainingCount}/5 | {medNight.adrenaline.remainingCount}/10</span>
+                              <span>{getMedCountText(medNight)}</span>
                               <span className="text-emerald-700">ครบ</span>
                             </div>
                             <div className="text-[10px] text-slate-500">ผู้ตรวจ: {medNight.recorderName}</div>

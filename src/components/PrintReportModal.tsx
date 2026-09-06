@@ -7,6 +7,7 @@ import {
   DailyHumidityRecord,
   THAI_MONTHS,
   THAI_YEARS,
+  ICU_MEDICATION_CATALOG,
 } from '../types/icu';
 import { getDaysInMonth } from '../services/icuService';
 import { Printer, X, FileText, CheckCircle2 } from 'lucide-react';
@@ -53,7 +54,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-400" />
             <h3 className="font-bold text-base">
-              แบบฟอร์มรายงานสรุปประจำเดือน ICU-DATA (สำหรับพิมพ์ / พิมพ์เป็น PDF)
+              แบบฟอร์มรายงานสรุปประจำเดือน ICU-DATA (สำหรับพิมพ์ / บันทึกเป็น PDF)
             </h3>
           </div>
           <div className="flex items-center gap-3">
@@ -88,10 +89,29 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             </p>
           </div>
 
-          {/* Section 1: Medication & Supplies */}
+          {/* Section 1: Medication Catalogue Standards */}
           <div className="space-y-2">
             <h2 className="text-sm font-bold text-slate-900 bg-slate-100 p-2 rounded-md">
-              1. สรุปการตรวจสอบยาและเวชภัณฑ์ ประจำเดือน (Adenosine 5 amp, Adrenaline 10 amp)
+              1. บัญชีรายการยาและเวชภัณฑ์มาตรฐาน ICU (29 รายการ)
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px] p-2 bg-slate-50 border border-slate-300 rounded">
+              {ICU_MEDICATION_CATALOG.map((m, idx) => (
+                <div key={m.id} className="flex justify-between border-b border-slate-200 pb-0.5">
+                  <span className="text-slate-800 font-medium">
+                    {idx + 1}. {m.name}
+                  </span>
+                  <span className="text-slate-600 font-bold">
+                    {m.targetCount} {m.unit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Medication & Supplies Daily Log */}
+          <div className="space-y-2">
+            <h2 className="text-sm font-bold text-slate-900 bg-slate-100 p-2 rounded-md">
+              2. สรุปการตรวจสอบยา 29 รายการ, รถ Emergency และ Emergency Box ประจำวัน
             </h2>
             <table className="w-full text-[11px] border border-slate-400 border-collapse">
               <thead>
@@ -107,36 +127,35 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
                   const m = medRecords[d];
                   const b = boxRecords[d]?.nightShift;
+
+                  const getShiftSummary = (shift: any) => {
+                    if (!shift || !shift.isComplete) return '-';
+                    return (
+                      <div>
+                        <div className="font-semibold text-slate-800">
+                          ตรวจครบ 29 รายการ ({shift.recorderName})
+                        </div>
+                        {shift.overallNotes && (
+                          <div className="text-[10px] text-slate-500">{shift.overallNotes}</div>
+                        )}
+                      </div>
+                    );
+                  };
+
                   return (
                     <tr key={d} className="border border-slate-300">
                       <td className="border border-slate-300 p-1 font-bold text-center">{d}</td>
-                      <td className="border border-slate-300 p-1">
-                        {m?.shifts?.morning ? (
-                          <div>
-                            Ade: {m.shifts.morning.adenosine.remainingCount}/5 | Adr: {m.shifts.morning.adrenaline.remainingCount}/10 ({m.shifts.morning.recorderName})
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td className="border border-slate-300 p-1">
-                        {m?.shifts?.afternoon ? (
-                          <div>
-                            Ade: {m.shifts.afternoon.adenosine.remainingCount}/5 | Adr: {m.shifts.afternoon.adrenaline.remainingCount}/10 ({m.shifts.afternoon.recorderName})
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td className="border border-slate-300 p-1">
-                        {m?.shifts?.night ? (
-                          <div>
-                            Ade: {m.shifts.night.adenosine.remainingCount}/5 | Adr: {m.shifts.night.adrenaline.remainingCount}/10 ({m.shifts.night.recorderName})
-                          </div>
-                        ) : '-'}
-                      </td>
+                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.morning)}</td>
+                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.afternoon)}</td>
+                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.night)}</td>
                       <td className="border border-slate-300 p-1">
                         {b ? (
                           <div>
-                            Alc: {b.alcohol70.remainingCount} | Adr: {b.adrenaline.remainingCount} | สำลี: {b.cottonBall.remainingCount} ({b.recorderName})
+                            Alc: {b.alcohol70?.remainingCount ?? '-'} | Adr: {b.adrenaline?.remainingCount ?? '-'} | สำลี: {b.cottonBall?.remainingCount ?? '-'} ({b.recorderName})
                           </div>
-                        ) : '-'}
+                        ) : (
+                          '-'
+                        )}
                       </td>
                     </tr>
                   );
@@ -145,17 +164,23 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
             </table>
           </div>
 
-          {/* Section 2: Refrigerator Temp & Humidity */}
+          {/* Section 3: Refrigerator Temp & Humidity */}
           <div className="space-y-2 page-break-before">
             <h2 className="text-sm font-bold text-slate-900 bg-slate-100 p-2 rounded-md">
-              2. สรุปอุณหภูมิตู้เย็นยา (2.0 - 8.0 °C) และความชื้นสัมพัทธ์ (40 - 75 %RH)
+              3. สรุปอุณหภูมิตู้เย็นยา (2.0 - 8.0 °C) และความชื้นสัมพัทธ์ (40 - 75 %RH)
             </h2>
             <table className="w-full text-[11px] border border-slate-400 border-collapse">
               <thead>
                 <tr className="bg-slate-200 border border-slate-400 text-center font-bold">
-                  <th rowSpan={2} className="border border-slate-400 p-1 w-12">วันที่</th>
-                  <th colSpan={4} className="border border-slate-400 p-1">อุณหภูมิตู้เย็นยา (°C)</th>
-                  <th colSpan={3} className="border border-slate-400 p-1">ความชื้นสัมพัทธ์ (%RH)</th>
+                  <th rowSpan={2} className="border border-slate-400 p-1 w-12">
+                    วันที่
+                  </th>
+                  <th colSpan={4} className="border border-slate-400 p-1">
+                    อุณหภูมิตู้เย็นยา (°C)
+                  </th>
+                  <th colSpan={3} className="border border-slate-400 p-1">
+                    ความชื้นสัมพัทธ์ (%RH)
+                  </th>
                 </tr>
                 <tr className="bg-slate-100 border border-slate-400 text-center text-[10px]">
                   <th className="border border-slate-400 p-1">14.00</th>
