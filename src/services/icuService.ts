@@ -4,6 +4,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -94,37 +95,50 @@ export async function testFirestoreConnection(): Promise<{ success: boolean; mes
   }
 }
 
-// 1. Staff Recorders Service
-const DEFAULT_STAFF: StaffRecorder[] = [
-  { id: '1', name: 'พว. กานดา รัตนวิชัย', role: 'พยาบาลวิชาชีพชำนาญการ (ICU หัวหน้าเวร)' },
-  { id: '2', name: 'พว. สมชาย ทรงคุณ', role: 'พยาบาลวิชาชีพ (ICU Nurse)' },
-  { id: '3', name: 'พว. ณภัทร สุขสมบูรณ์', role: 'พยาบาลวิชาชีพ (ICU Nurse)' },
-  { id: '4', name: 'พว. วรรณภา มั่นคง', role: 'พยาบาลวิชาชีพ (ICU Nurse)' },
-  { id: '5', name: 'พว. ปิยะวัฒน์ เจริญสุข', role: 'พยาบาลวิชาชีพ (ICU Nurse)' },
+// 1. Staff Recorders Service (Cleared for real production use)
+const MOCK_NAMES_TO_PURGE = [
+  'พว. กานดา รัตนวิชัย',
+  'พว. สมชาย ทรงคุณ',
+  'พว. ณภัทร สุขสมบูรณ์',
+  'พว. วรรณภา มั่นคง',
+  'พว. ปิยะวัฒน์ เจริญสุข',
 ];
 
 export async function getStaffList(): Promise<StaffRecorder[]> {
-  const localStaff = getLocalCache<StaffRecorder[]>('staff', DEFAULT_STAFF);
+  const localStaff = getLocalCache<StaffRecorder[]>('staff', []);
+  // Clean mock names if found in local cache
+  const cleanLocal = localStaff.filter((s) => !MOCK_NAMES_TO_PURGE.includes(s.name));
+  if (cleanLocal.length !== localStaff.length) {
+    setLocalCache('staff', cleanLocal);
+  }
+
   try {
     const snap = await getDocs(collection(db, COLL_STAFF));
     if (snap.empty) {
-      for (const st of DEFAULT_STAFF) {
-        await setDoc(doc(db, COLL_STAFF, st.id), st);
-      }
-      setLocalCache('staff', DEFAULT_STAFF);
-      return DEFAULT_STAFF;
+      return cleanLocal;
     }
-    const staffList = snap.docs.map((d) => d.data() as StaffRecorder);
+    const staffList = snap.docs
+      .map((d) => d.data() as StaffRecorder)
+      .filter((s) => !MOCK_NAMES_TO_PURGE.includes(s.name));
+
+    // Also purge mock documents from firestore if any exist
+    for (const d of snap.docs) {
+      const data = d.data() as StaffRecorder;
+      if (MOCK_NAMES_TO_PURGE.includes(data?.name)) {
+        deleteDoc(d.ref).catch(() => {});
+      }
+    }
+
     setLocalCache('staff', staffList);
     return staffList;
   } catch (err) {
-    console.warn('Firebase staff read error, using cached defaults:', err);
-    return localStaff.length > 0 ? localStaff : DEFAULT_STAFF;
+    console.warn('Firebase staff read error, using cached data:', err);
+    return cleanLocal;
   }
 }
 
 export async function saveStaffMember(staff: StaffRecorder): Promise<void> {
-  const current = getLocalCache<StaffRecorder[]>('staff', DEFAULT_STAFF);
+  const current = getLocalCache<StaffRecorder[]>('staff', []);
   const updated = [...current.filter((s) => s.id !== staff.id), staff];
   setLocalCache('staff', updated);
 
@@ -132,6 +146,18 @@ export async function saveStaffMember(staff: StaffRecorder): Promise<void> {
     await setDoc(doc(db, COLL_STAFF, staff.id), staff);
   } catch (err) {
     console.warn('Staff save error in Firestore:', err);
+  }
+}
+
+export async function deleteStaffMember(staffId: string): Promise<void> {
+  const current = getLocalCache<StaffRecorder[]>('staff', []);
+  const updated = current.filter((s) => s.id !== staffId);
+  setLocalCache('staff', updated);
+
+  try {
+    await deleteDoc(doc(db, COLL_STAFF, staffId));
+  } catch (err) {
+    console.warn('Staff delete error in Firestore:', err);
   }
 }
 

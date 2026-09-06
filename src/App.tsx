@@ -19,6 +19,7 @@ import {
 import {
   getStaffList,
   saveStaffMember,
+  deleteStaffMember,
   subscribeMonthMedications,
   subscribeMonthEmergencyCart,
   subscribeMonthEmergencyBox,
@@ -43,11 +44,19 @@ import { ToastContainer, ToastMessage } from './components/Toast';
 import confetti from 'canvas-confetti';
 import { Activity, Sparkles, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
 
-const DEFAULT_STAFF: StaffRecorder = {
-  id: '1',
-  name: 'พว. กานดา รัตนวิชัย',
-  role: 'พยาบาลวิชาชีพชำนาญการ (ICU หัวหน้าเวร)',
+const EMPTY_STAFF: StaffRecorder = {
+  id: '',
+  name: '',
+  role: 'พยาบาลวิชาชีพ (ICU Nurse)',
 };
+
+const MOCK_NAMES_SET = new Set([
+  'พว. กานดา รัตนวิชัย',
+  'พว. สมชาย ทรงคุณ',
+  'พว. ณภัทร สุขสมบูรณ์',
+  'พว. วรรณภา มั่นคง',
+  'พว. ปิยะวัฒน์ เจริญสุข',
+]);
 
 export default function App() {
   // Current time / default date settings
@@ -59,18 +68,21 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonthNum);
   const [activeTab, setActiveTab] = useState<string>('dashboard_supplies');
 
-  // Staff state
+  // Staff state (Cleared for real production use)
   const [staffList, setStaffList] = useState<StaffRecorder[]>([]);
   const [currentStaff, setCurrentStaff] = useState<StaffRecorder>(() => {
     const saved = localStorage.getItem('icu_current_staff');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed?.name && !MOCK_NAMES_SET.has(parsed.name)) {
+          return parsed;
+        }
       } catch (e) {
-        return DEFAULT_STAFF;
+        return EMPTY_STAFF;
       }
     }
-    return DEFAULT_STAFF;
+    return EMPTY_STAFF;
   });
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
 
@@ -112,9 +124,15 @@ export default function App() {
   // Load Staff on Mount
   useEffect(() => {
     getStaffList().then((list) => {
-      setStaffList(list);
-      if (!list.some((s) => s.name === currentStaff.name)) {
-        if (list.length > 0) setCurrentStaff(list[0]);
+      const filtered = list.filter((s) => !MOCK_NAMES_SET.has(s.name));
+      setStaffList(filtered);
+      if (!currentStaff.name || MOCK_NAMES_SET.has(currentStaff.name)) {
+        if (filtered.length > 0) {
+          handleSelectStaff(filtered[0]);
+        } else {
+          setCurrentStaff(EMPTY_STAFF);
+          localStorage.removeItem('icu_current_staff');
+        }
       }
     });
   }, []);
@@ -133,9 +151,29 @@ export default function App() {
       lastUsedAt: new Date().toISOString(),
     };
     await saveStaffMember(newStaff);
-    const updated = [...staffList, newStaff];
+    const updated = [...staffList.filter((s) => s.id !== newStaff.id), newStaff];
     setStaffList(updated);
     handleSelectStaff(newStaff);
+    showToast({
+      type: 'success',
+      title: 'บันทึกรายชื่อผู้บันทึกใหม่แล้ว',
+      message: `เพิ่ม ${name} (${role}) ลงในระบบ ICU-DATA เรียบร้อย`,
+    });
+  };
+
+  const handleDeleteStaff = async (staffId: string) => {
+    await deleteStaffMember(staffId);
+    const updated = staffList.filter((s) => s.id !== staffId);
+    setStaffList(updated);
+    if (currentStaff.id === staffId) {
+      const nextStaff = updated.length > 0 ? updated[0] : EMPTY_STAFF;
+      handleSelectStaff(nextStaff);
+    }
+    showToast({
+      type: 'info',
+      title: 'ลบรายชื่อแล้ว',
+      message: 'ลบข้อมูลผู้บันทึกออกจากระบบเรียบร้อย',
+    });
   };
 
   // Subscribe to Realtime Firestore collections for the selected Year & Month
@@ -384,6 +422,7 @@ export default function App() {
         staffList={staffList}
         onSelectStaff={handleSelectStaff}
         onAddNewStaff={handleAddNewStaff}
+        onDeleteStaff={handleDeleteStaff}
       />
 
       {/* Printable Report Modal */}

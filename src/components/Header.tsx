@@ -52,14 +52,18 @@ export const Header: React.FC<HeaderProps> = ({
   const currentThaiYearObj = THAI_YEARS.find((y) => y.ceYear === selectedYearCE) || THAI_YEARS[0];
   const currentMonthObj = THAI_MONTHS.find((m) => m.value === selectedMonth) || THAI_MONTHS[0];
 
-  const navItems = [
-    { id: 'dashboard_supplies', label: '1. แดชบอร์ดสรุปยาและเวชภัณฑ์', icon: '📊' },
-    { id: 'dashboard_env', label: '2. แดชบอร์ดอุณหภูมิ & ความชื้น', icon: '📈' },
-    { id: 'check_med', label: '3. บันทึกยา & เวชภัณฑ์ (3 เวร)', icon: '💊' },
-    { id: 'check_cart', label: '4. บันทึกรถ Emergency (3 เวร)', icon: '🚑' },
-    { id: 'check_box', label: '5. บันทึก Emergency Box (เวรดึก)', icon: '🧰' },
-    { id: 'check_temp', label: '6. บันทึกอุณหภูมิตู้เย็นยา', icon: '❄️' },
-    { id: 'check_hum', label: '7. บันทึกความชื้นสัมพัทธ์ %RH', icon: '💧' },
+  // Two rows of menu navigation
+  const dashboardNavItems = [
+    { id: 'dashboard_supplies', label: '1. แดชบอร์ดสรุปยาและเวชภัณฑ์', icon: '📊', desc: 'สรุปสต็อกยา 29 รายการ & รายการฉุกเฉิน' },
+    { id: 'dashboard_env', label: '2. แดชบอร์ดอุณหภูมิ & ความชื้น', icon: '📈', desc: 'กราฟวิเคราะห์ตู้เย็น 2-8°C และความชื้น RH%' },
+  ];
+
+  const checkNavItems = [
+    { id: 'check_med', label: '3. บันทึกยา & เวชภัณฑ์ (3 เวร)', icon: '💊', short: 'ยา 29 รายการ' },
+    { id: 'check_cart', label: '4. บันทึกรถ Emergency (3 เวร)', icon: '🚑', short: 'รถ Crash Cart' },
+    { id: 'check_box', label: '5. บันทึก Emergency Box (เวรดึก)', icon: '🧰', short: 'กล่องฉุกเฉิน' },
+    { id: 'check_temp', label: '6. บันทึกอุณหภูมิตู้เย็นยา', icon: '❄️', short: 'ตู้เย็น 2-8°C' },
+    { id: 'check_hum', label: '7. บันทึกความชื้นสัมพัทธ์ %RH', icon: '💧', short: 'ความชื้น 40-75%' },
   ];
 
   return (
@@ -111,23 +115,45 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Recorder Profile (ชื่อ-นามสกุล ผู้บันทึก) */}
+            {/* Recorder Profile (ชื่อ-นามสกุล พยาบาลผู้บันทึก) */}
             <button
               type="button"
               onClick={onOpenStaffModal}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-700 transition-all hover:border-slate-300 shadow-2xs group"
-              title="คลิกเพื่อเปลี่ยนหรือแก้ไขชื่อผู้บันทึกข้อมูล"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer shadow-2xs group ${
+                currentStaff.name
+                  ? 'bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:border-slate-300'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white border border-blue-700 animate-pulse font-medium'
+              }`}
+              title={currentStaff.name ? 'คลิกเพื่อเปลี่ยนหรือจัดการรายชื่อผู้บันทึก' : 'คลิกเพื่อระบุชื่อ-นามสกุล พยาบาลผู้บันทึกข้อมูล'}
             >
-              <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  currentStaff.name ? 'bg-blue-600 text-white' : 'bg-white/20 text-white'
+                }`}
+              >
                 <User className="w-3.5 h-3.5" />
               </div>
               <div className="text-left">
-                <div className="text-[10px] text-slate-400 font-medium leading-none">ผู้บันทึกปัจจุบัน</div>
-                <div className="font-semibold text-slate-800 group-hover:text-blue-600 leading-tight">
-                  {currentStaff.name}
+                <div
+                  className={`text-[10px] font-medium leading-none ${
+                    currentStaff.name ? 'text-slate-400' : 'text-blue-100'
+                  }`}
+                >
+                  {currentStaff.name ? 'ผู้บันทึกเวร' : 'ยังไม่ได้ระบุชื่อ'}
+                </div>
+                <div
+                  className={`font-semibold leading-tight ${
+                    currentStaff.name
+                      ? 'text-slate-800 group-hover:text-blue-600'
+                      : 'text-white underline underline-offset-2'
+                  }`}
+                >
+                  {currentStaff.name || '+ ระบุชื่อพยาบาล'}
                 </div>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronDown
+                className={`w-3.5 h-3.5 ${currentStaff.name ? 'text-slate-400' : 'text-blue-200'}`}
+              />
             </button>
 
             {/* Year Selector (พ.ศ. 2569 - 2580) */}
@@ -167,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenPrintModal}
-                className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
                 title="พิมพ์แบบฟอร์มรายงานสรุปประจำเดือน"
               >
                 <Printer className="w-4 h-4" />
@@ -177,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={onGenerateSampleData}
                 disabled={isSyncing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-semibold transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                 title="สร้างข้อมูลตัวอย่างจำลองสำหรับเดือนนี้เพื่อทดสอบระบบ"
               >
                 {isSyncing ? (
@@ -191,26 +217,60 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex space-x-1 overflow-x-auto pb-2 scrollbar-none pt-1">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onSelectTab(item.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-xl whitespace-nowrap transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        {/* 2-ROW NAVIGATION MENU (แถบเมนู 2 บรรทัด) */}
+        <div className="border-t border-slate-100 py-1.5 space-y-1.5">
+          {/* บรรทัดที่ 1: แดชบอร์ดภาพรวม & การวิเคราะห์ */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 bg-slate-100 rounded-lg shrink-0 flex items-center gap-1">
+              <span>แดชบอร์ด</span>
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {dashboardNavItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectTab(item.id)}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                        : 'text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:text-blue-700'
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* บรรทัดที่ 2: เมนูบันทึกข้อมูลประจำเวร ICU */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
+            <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider px-2 py-1 bg-blue-100 rounded-lg shrink-0 flex items-center gap-1">
+              <span>บันทึกเวร</span>
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {checkNavItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectTab(item.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded-xl whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-xs font-semibold ring-2 ring-indigo-300'
+                        : 'text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 hover:text-indigo-700'
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </header>
   );
