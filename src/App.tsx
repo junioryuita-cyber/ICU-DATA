@@ -28,7 +28,7 @@ import {
   subscribeMonthEmergencyBox,
   subscribeMonthFridgeTemp,
   subscribeMonthHumidity,
-  clearMonthData,
+  generateSampleMonthData,
   checkExpiryAlert,
 } from './services/icuService';
 import { Header } from './components/Header';
@@ -41,10 +41,12 @@ import { HumidityCheck } from './components/HumidityCheck';
 import { DashboardSupplies } from './components/DashboardSupplies';
 import { DashboardEnvironment } from './components/DashboardEnvironment';
 import { PrintReportModal } from './components/PrintReportModal';
+import { UserManual } from './components/UserManual';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
 import { DbStatusModal } from './components/DbStatusModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
-import { Activity, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { Activity, Sparkles, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
 
 const EMPTY_STAFF: StaffRecorder = {
   id: '',
@@ -339,30 +341,26 @@ export default function App() {
     return alerts;
   }, [medRecords, cartRecords, boxRecords, selectedYearCE, selectedMonth]);
 
-  // Clear month data for a clean fresh start with real recording
-  const handleClearMonthData = async () => {
+  // Sample mock data generator
+  const handleGenerateSampleData = async () => {
     setIsSyncing(true);
     try {
-      await clearMonthData(selectedYearCE, selectedMonth);
-      setMedRecords({});
-      setCartRecords({});
-      setBoxRecords({});
-      setTempRecords({});
-      setHumidityRecords({});
-      const monthObj = THAI_MONTHS.find((m) => m.value === selectedMonth) || THAI_MONTHS[0];
       const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
-      showToast({
-        type: 'info',
-        title: 'ล้างข้อมูลประจำเดือนเรียบร้อย',
-        message: `ล้างข้อมูลเดือน ${monthObj.name} พ.ศ. ${thaiYear} แล้ว พร้อมสำหรับการเริ่มบันทึกข้อมูลจริง`,
-      });
+      await generateSampleMonthData(
+        selectedYearCE,
+        thaiYear,
+        selectedMonth,
+        staffList.map((s) => s.name)
+      );
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (e) {}
     } catch (err) {
-      console.error('Clear month error:', err);
-      showToast({
-        type: 'error',
-        title: 'เกิดข้อผิดพลาดในการล้างข้อมูล',
-        message: 'ไม่สามารถลบข้อมูลออกจากฐานข้อมูลได้ โปรดลองอีกครั้ง',
-      });
+      console.error('Sample data gen error:', err);
     } finally {
       setIsSyncing(false);
     }
@@ -381,7 +379,7 @@ export default function App() {
         onOpenDbModal={() => setIsDbModalOpen(true)}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onClearMonthData={handleClearMonthData}
+        onGenerateSampleData={handleGenerateSampleData}
         onOpenPrintModal={() => setIsPrintModalOpen(true)}
         isSyncing={isSyncing}
         expiryAlertCount={expiryAlerts.length}
@@ -466,6 +464,13 @@ export default function App() {
             onToast={showToast}
           />
         )}
+
+        {activeTab === 'user_manual' && (
+          <UserManual
+            onSelectTab={setActiveTab}
+            onOpenPrintModal={() => setIsPrintModalOpen(true)}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -476,6 +481,13 @@ export default function App() {
             <span>— ระบบตรวจสอบยาและเวชภัณฑ์ หอผู้ป่วยหนัก ICU</span>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('user_manual')}
+              className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-800 font-semibold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 cursor-pointer transition-colors"
+            >
+              <span>📖 คู่มือการใช้งานระบบ</span>
+            </button>
             <span className="text-slate-400">พ.ศ. 2569 – 2580 (2026 - 2037)</span>
             <button
               onClick={() => setIsDbModalOpen(true)}
