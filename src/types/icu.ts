@@ -1,6 +1,7 @@
 /**
  * ICU-DATA TypeScript definitions
- * System for ICU Medication (29 items), Emergency Cart, Emergency Box, Refrigerator Temperature & Humidity Logs
+ * System for ICU Medication (29 items), Emergency Cart (5 shelves, 45 items), Emergency Box (26 items),
+ * Refrigerator Temperature (2-8 C) & Humidity (40-75 %RH) Logs
  */
 
 export type ShiftType = 'morning' | 'afternoon' | 'night';
@@ -67,7 +68,7 @@ export interface StaffRecorder {
   lastUsedAt?: string;
 }
 
-// 29 Specific Medication & Supplies Catalog for ICU
+// 1. 29 Specific Medication & Supplies Catalog for ICU
 export interface MedicationDef {
   id: string;
   name: string;
@@ -114,6 +115,8 @@ export interface MedicationItemRecord {
   unit: string;
   notes: string;
   status: 'complete' | 'low' | 'empty' | 'unrecorded';
+  expiryDate?: string;
+  expiryAlert?: 'normal' | 'warning_3months' | 'expired';
 }
 
 export interface ShiftMedicationCheck {
@@ -126,10 +129,10 @@ export interface ShiftMedicationCheck {
 }
 
 export interface DailyMedicationRecord {
-  day: number; // 1 - 31
-  month: number; // 1 - 12
-  yearCE: number; // 2026 - 2037
-  yearThai: number; // 2569 - 2580
+  day: number;
+  month: number;
+  yearCE: number;
+  yearThai: number;
   shifts: {
     morning?: ShiftMedicationCheck;
     afternoon?: ShiftMedicationCheck;
@@ -138,9 +141,77 @@ export interface DailyMedicationRecord {
   updatedAt?: string;
 }
 
-// 2. รถ Emergency (Crash Cart)
+// 2. Emergency Cart (Crash Cart) - 5 Shelves / 45 Items
+export interface CartItemDef {
+  id: string;
+  name: string;
+  targetCount: number;
+  unit: string;
+  shelf: 'shelf_top' | 'shelf_1' | 'shelf_2' | 'shelf_3' | 'shelf_4' | 'shelf_5';
+  shelfName: string;
+}
+
+export const EMERGENCY_CART_CATALOG: CartItemDef[] = [
+  // ชั้นบนสุด
+  { id: 'cart_laryngoscope', name: 'Laryngoscope', targetCount: 3, unit: 'อัน', shelf: 'shelf_top', shelfName: 'ชั้นบนสุด' },
+  { id: 'cart_handle', name: 'Handle', targetCount: 2, unit: 'อัน', shelf: 'shelf_top', shelfName: 'ชั้นบนสุด' },
+  { id: 'cart_battery', name: 'ถ่านไฟฉาย', targetCount: 2, unit: 'ก้อน', shelf: 'shelf_top', shelfName: 'ชั้นบนสุด' },
+
+  // ชั้นที่ 1
+  { id: 'cart_box_1', name: 'Emergency Box 1', targetCount: 1, unit: 'กล่อง', shelf: 'shelf_1', shelfName: 'ชั้นที่ 1' },
+  { id: 'cart_box_2', name: 'Emergency Box 2', targetCount: 1, unit: 'กล่อง', shelf: 'shelf_1', shelfName: 'ชั้นที่ 1' },
+
+  // ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT
+  { id: 'cart_gloves_6', name: 'ถุงมือ no.6', targetCount: 1, unit: 'คู่', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_gloves_6_5', name: 'ถุงมือ no.6.5', targetCount: 1, unit: 'คู่', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_gloves_7', name: 'ถุงมือ no.7', targetCount: 3, unit: 'คู่', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_gloves_7_5', name: 'ถุงมือ no.7.5', targetCount: 3, unit: 'คู่', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_gloves_8', name: 'ถุงมือ no.8', targetCount: 3, unit: 'คู่', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_stylet', name: 'Stylet', targetCount: 5, unit: 'อัน', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_sterile_gel', name: 'Sterile gel', targetCount: 5, unit: 'ซอง', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_tongue_depressor', name: 'ไม้กดลิ้น', targetCount: 2, unit: 'อัน', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+  { id: 'cart_flashlight', name: 'ไฟฉาย', targetCount: 2, unit: 'อัน', shelf: 'shelf_2', shelfName: 'ชั้นที่ 2 อุปกรณ์เตรียมใส่ ETT' },
+
+  // ชั้นที่ 3 ฉีดยา/เปิด IV
+  { id: 'cart_syringe_5', name: 'Syringe 5 ml', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_syringe_10', name: 'Syringe 10 ml', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_syringe_20', name: 'Syringe 20 ml', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_syringe_50', name: 'Syringe 50 ml', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_set_iv', name: 'Set IV', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_tway', name: 'T-way stopcock', targetCount: 5, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_extension_6', name: 'Extension 6 นิ้ว', targetCount: 5, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_needle_18', name: 'Needle no.18', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_needle_21', name: 'Needle no.21', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_needle_24', name: 'Needle no.24', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_needle_25', name: 'Needle no.25', targetCount: 10, unit: 'อัน', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+  { id: 'cart_alcohol_pad', name: '70% Alcohol pad', targetCount: 10, unit: 'แผ่น', shelf: 'shelf_3', shelfName: 'ชั้นที่ 3 ฉีดยา/เปิด IV' },
+
+  // ชั้นที่ 4 อุปกรณ์ใส่ ETT
+  { id: 'cart_ett_5_5', name: 'ETT no.5.5', targetCount: 1, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_ett_6_0', name: 'ETT no.6', targetCount: 1, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_ett_6_5', name: 'ETT no.6.5', targetCount: 3, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_ett_7_0', name: 'ETT no.7', targetCount: 3, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_ett_7_5', name: 'ETT no.7.5', targetCount: 3, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_ett_8_0', name: 'ETT no.8', targetCount: 3, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_magill', name: 'Magill Forceps', targetCount: 1, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+  { id: 'cart_opa', name: 'oropharyngeal airway', targetCount: 10, unit: 'อัน', shelf: 'shelf_4', shelfName: 'ชั้นที่ 4 อุปกรณ์ใส่ ETT' },
+
+  // ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำและอุปกรณ์ช่วยหายใจ
+  { id: 'cart_mask_large', name: 'Face mask ใหญ่', targetCount: 2, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_mask_small', name: 'Face mask เล็ก', targetCount: 2, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_o2_mask', name: 'O2 Mask', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_o2_mask_bag', name: 'O2 Mask with bag', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_ambu_bag', name: 'Ambu bag', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_o2_tubing', name: 'สาย O2', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_mdi_conn', name: 'ข้อต่อพ่นยา MDI', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_nb_ett_conn', name: 'ข้อต่อพ่นยา NB via ETT', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_mask_neb', name: 'Mask พ่นยา', targetCount: 1, unit: 'อัน', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_acetar', name: 'Acetar 1000 ml', targetCount: 1, unit: 'ขวด', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+  { id: 'cart_nacl_1000', name: '0.9%NaCl 1000 ml', targetCount: 1, unit: 'ขวด', shelf: 'shelf_5', shelfName: 'ชั้นที่ 5 อุปกรณ์ใส่ ETT / สารน้ำ' },
+];
+
 export interface SupplyExpiryItemRecord extends MedicationItemRecord {
-  expiryDate?: string; // YYYY-MM-DD
+  expiryDate?: string;
   expiryAlert?: 'normal' | 'warning_3months' | 'expired';
 }
 
@@ -148,9 +219,10 @@ export interface ShiftEmergencyCartCheck {
   recorderName: string;
   recorderRole?: string;
   checkedAt?: string;
-  alcohol70: MedicationItemRecord; // 10 แผ่น
-  adrenaline: MedicationItemRecord; // 5 amp
-  cottonBall: SupplyExpiryItemRecord; // 2 ห่อ + วันหมดอายุ
+  items?: Record<string, MedicationItemRecord>;
+  alcohol70?: MedicationItemRecord;
+  adrenaline?: MedicationItemRecord;
+  cottonBall?: SupplyExpiryItemRecord;
   overallNotes?: string;
   isComplete: boolean;
 }
@@ -168,7 +240,44 @@ export interface DailyEmergencyCartRecord {
   updatedAt?: string;
 }
 
-// 3. Emergency Box (วันละ 1 ครั้ง ในเวรดึก 00.30-08.30)
+// 3. Emergency Box Catalog - 26 Items (ตรวจวันละ 1 ครั้ง ในเวรดึก 00.30-08.30)
+export interface BoxItemDef {
+  id: string;
+  name: string;
+  targetCount: number;
+  unit: string;
+  category: string;
+}
+
+export const EMERGENCY_BOX_CATALOG: BoxItemDef[] = [
+  { id: 'box_alcohol_70', name: '70% Alcohol pad', targetCount: 10, unit: 'แผ่น', category: 'น้ำยาฆ่าเชื้อ' },
+  { id: 'box_medicut_18', name: 'Medicut no.18', targetCount: 10, unit: 'อัน', category: 'เข็มเปิดเส้น IV' },
+  { id: 'box_medicut_20', name: 'Medicut no.20', targetCount: 5, unit: 'อัน', category: 'เข็มเปิดเส้น IV' },
+  { id: 'box_medicut_22', name: 'Medicut no.22', targetCount: 5, unit: 'อัน', category: 'เข็มเปิดเส้น IV' },
+  { id: 'box_medicut_24', name: 'Medicut no.24', targetCount: 2, unit: 'อัน', category: 'เข็มเปิดเส้น IV' },
+  { id: 'box_tourniquet', name: 'Tunique (สายรัดแขน)', targetCount: 2, unit: 'อัน', category: 'อุปกรณ์เปิดเส้น' },
+  { id: 'box_syringe_10', name: 'Syringe 10 ml', targetCount: 5, unit: 'อัน', category: 'กระบอกฉีดยา' },
+  { id: 'box_syringe_5', name: 'Syringe 5 ml', targetCount: 3, unit: 'อัน', category: 'กระบอกฉีดยา' },
+  { id: 'box_syringe_3', name: 'Syringe 3 ml', targetCount: 1, unit: 'อัน', category: 'กระบอกฉีดยา' },
+  { id: 'box_extension_6', name: 'Extension 6 นิ้ว', targetCount: 2, unit: 'อัน', category: 'สายต่อ IV' },
+  { id: 'box_tway', name: 'T-way stopcock', targetCount: 2, unit: 'อัน', category: 'ข้อต่อ 3 ทาง' },
+  { id: 'box_needle_18', name: 'Needle no.18', targetCount: 5, unit: 'อัน', category: 'เข็มฉีดยา' },
+  { id: 'box_needle_21', name: 'Needle no.21', targetCount: 5, unit: 'อัน', category: 'เข็มฉีดยา' },
+  { id: 'box_needle_24_half', name: 'Needle no.24 ½', targetCount: 2, unit: 'อัน', category: 'เข็มฉีดยา' },
+  { id: 'box_opa_3', name: 'oropharyngeal airway no.3', targetCount: 1, unit: 'อัน', category: 'อุปกรณ์ทางเดินหายใจ' },
+  { id: 'box_opa_2', name: 'oropharyngeal airway no.2', targetCount: 1, unit: 'อัน', category: 'อุปกรณ์ทางเดินหายใจ' },
+  { id: 'box_fixomull_small', name: 'Fixomull IV เล็ก', targetCount: 5, unit: 'อัน', category: 'พลาสเตอร์ติดแผล' },
+  { id: 'box_fixomull_large', name: 'Fixomull IV ใหญ่', targetCount: 10, unit: 'อัน', category: 'พลาสเตอร์ติดแผล' },
+  { id: 'box_face_mask', name: 'Face mask', targetCount: 1, unit: 'อัน', category: 'หน้ากากออกซิเจน' },
+  { id: 'box_nacl_100', name: '0.9% NaCl 100 ml', targetCount: 1, unit: 'ขวด', category: 'สารน้ำ IV' },
+  { id: 'box_dw5_100', name: '5%DW 100 ml', targetCount: 1, unit: 'ขวด', category: 'สารน้ำ IV' },
+  { id: 'box_cotton_5', name: 'สำลี 5 ก้อน', targetCount: 2, unit: 'ห่อ', category: 'เวชภัณฑ์ปลอดเชื้อ' },
+  { id: 'box_adrenaline', name: 'Adrenaline 1 mg/ml inj', targetCount: 5, unit: 'amp', category: 'ยาช่วยชีวิตฉุกเฉิน (CPR)' },
+  { id: 'box_diazepam', name: 'Diazepam 10 mg', targetCount: 2, unit: 'amp', category: 'ยากันชัก/สงบประสาท' },
+  { id: 'box_gloves', name: 'ถุงมือ', targetCount: 2, unit: 'คู่', category: 'ถุงมือตรวจโรค' },
+  { id: 'box_tegaderm_iv', name: 'Tegaderm Film IV', targetCount: 5, unit: 'อัน', category: 'ฟิล์มใสปิดแผล' },
+];
+
 export interface DailyEmergencyBoxRecord {
   day: number;
   month: number;
@@ -178,9 +287,10 @@ export interface DailyEmergencyBoxRecord {
     recorderName: string;
     recorderRole?: string;
     checkedAt?: string;
-    alcohol70: MedicationItemRecord; // 10 แผ่น
-    adrenaline: MedicationItemRecord; // 5 amp
-    cottonBall: SupplyExpiryItemRecord; // 2 ห่อ
+    items?: Record<string, MedicationItemRecord>;
+    alcohol70?: MedicationItemRecord;
+    adrenaline?: MedicationItemRecord;
+    cottonBall?: SupplyExpiryItemRecord;
     overallNotes?: string;
     isComplete: boolean;
   };
@@ -231,12 +341,13 @@ export interface DailyHumidityRecord {
 
 export interface ExpiryAlertInfo {
   id: string;
-  source: 'cart' | 'box';
+  source: 'medication' | 'cart' | 'box';
   day: number;
   month: number;
   yearThai: number;
   shift?: ShiftType;
   itemName: string;
+  categoryOrShelf?: string;
   expiryDate: string;
   daysRemaining: number;
   status: 'warning_3months' | 'expired';

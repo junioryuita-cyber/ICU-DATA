@@ -55,8 +55,8 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
 
   // Calculate Monthly Metrics
   const metrics = useMemo(() => {
-    let totalShiftsPossible = daysInMonth * 3; // morning, afternoon, night
-    let medCompletedShifts = 0;
+    let totalCartShiftsPossible = daysInMonth * 3; // morning, afternoon, night for cart
+    let medCompletedDays = 0;
     let cartCompletedShifts = 0;
     let boxCompletedDays = 0;
     let lowStockCount = 0;
@@ -67,20 +67,21 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
       const cart = cartRecords[d];
       const box = boxRecords[d];
 
-      // Med checks across 29 items
-      (['morning', 'afternoon', 'night'] as ShiftType[]).forEach((sh) => {
-        const mShift = med?.shifts?.[sh];
-        if (mShift?.isComplete) {
-          medCompletedShifts++;
-          if (mShift.items) {
-            (Object.values(mShift.items) as MedicationItemRecord[]).forEach((item) => {
-              if (item.remainingCount !== null && item.remainingCount < item.targetCount) {
-                lowStockCount++;
-              }
-            });
-          }
+      // Med check (Morning shift 08.30-16.30)
+      const morningMed = med?.shifts?.morning;
+      if (morningMed?.isComplete) {
+        medCompletedDays++;
+        if (morningMed.items) {
+          (Object.values(morningMed.items) as MedicationItemRecord[]).forEach((item) => {
+            if (item.remainingCount !== null && item.remainingCount < item.targetCount) {
+              lowStockCount++;
+            }
+          });
         }
+      }
 
+      // Cart checks across 3 shifts
+      (['morning', 'afternoon', 'night'] as ShiftType[]).forEach((sh) => {
         const cShift = cart?.shifts?.[sh];
         if (cShift?.isComplete) {
           cartCompletedShifts++;
@@ -109,14 +110,15 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
       }
     }
 
-    const overallRate = Math.round(
-      ((medCompletedShifts + cartCompletedShifts + boxCompletedDays) / (totalShiftsPossible * 2 + daysInMonth)) * 100
-    );
+    const totalTasks = daysInMonth + totalCartShiftsPossible + daysInMonth;
+    const completedTasks = medCompletedDays + cartCompletedShifts + boxCompletedDays;
+    const overallRate = Math.round((completedTasks / totalTasks) * 100);
 
     return {
-      totalShiftsPossible,
-      medCompletedShifts,
+      daysInMonth,
+      medCompletedDays,
       cartCompletedShifts,
+      totalCartShiftsPossible,
       boxCompletedDays,
       lowStockCount,
       expiringItemsCount,
@@ -265,7 +267,7 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
             ตารางสรุปการตรวจเช็คสต็อกประจำเดือน — {monthObj.name} พ.ศ. {thaiYear}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            สรุปข้อมูลรายวัน 3 กะ: เช้า (08.30-16.30), บ่าย (16.30-00.30), ดึก (00.30-08.30) และ Emergency Box
+            สรุปข้อมูลรายวัน: ตรวจสอบยาและเวชภัณฑ์ 29 รายการ (เวรเช้า 08.30-16.30 น.), รถ Emergency (3 เวร) และ Emergency Box (เวรดึก)
           </p>
         </div>
 
@@ -301,17 +303,17 @@ export const DashboardSupplies: React.FC<DashboardSuppliesProps> = ({
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="text-xs font-semibold text-slate-400">บันทึกยา (29 รายการ)</div>
           <div className="text-2xl font-black text-indigo-700 mt-1">
-            {metrics.medCompletedShifts}{' '}
-            <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
+            {metrics.medCompletedDays}{' '}
+            <span className="text-xs font-normal text-slate-500">/ {daysInMonth} วัน</span>
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">เช้า, บ่าย, ดึก</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">เวรเช้า (08.30-16.30 น.)</div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="text-xs font-semibold text-slate-400">บันทึกรถ Emergency</div>
           <div className="text-2xl font-black text-rose-700 mt-1">
             {metrics.cartCompletedShifts}{' '}
-            <span className="text-xs font-normal text-slate-500">/ {metrics.totalShiftsPossible} กะ</span>
+            <span className="text-xs font-normal text-slate-500">/ {metrics.totalCartShiftsPossible} กะ</span>
           </div>
           <div className="text-[11px] text-slate-500 mt-0.5">เช้า, บ่าย, ดึก</div>
         </div>

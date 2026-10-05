@@ -59,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   const checkNavItems = [
-    { id: 'check_med', label: '3. บันทึกยา & เวชภัณฑ์ (3 เวร)', icon: '💊', short: 'ยา 29 รายการ' },
+    { id: 'check_med', label: '3. ตรวจสอบยาและเวชภัณฑ์ ประจำเดือน (เช้า)', icon: '💊', short: 'ยา 29 รายการ (เช้า 08.30-16.30)' },
     { id: 'check_cart', label: '4. บันทึกรถ Emergency (3 เวร)', icon: '🚑', short: 'รถ Crash Cart' },
     { id: 'check_box', label: '5. บันทึก Emergency Box (เวรดึก)', icon: '🧰', short: 'กล่องฉุกเฉิน' },
     { id: 'check_temp', label: '6. บันทึกอุณหภูมิตู้เย็นยา', icon: '❄️', short: 'ตู้เย็น 2-8°C' },

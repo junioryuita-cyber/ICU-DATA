@@ -117,27 +117,51 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
               <thead>
                 <tr className="bg-slate-200 border border-slate-400 text-center font-bold">
                   <th className="border border-slate-400 p-1 w-12">วันที่</th>
-                  <th className="border border-slate-400 p-1">เวรเช้า (08.30-16.30)</th>
-                  <th className="border border-slate-400 p-1">เวรบ่าย (16.30-00.30)</th>
-                  <th className="border border-slate-400 p-1">เวรดึก (00.30-08.30)</th>
+                  <th className="border border-slate-400 p-1">เวรเช้า (08.30-16.30): ยา 29 รายการ & รถ Crash Cart</th>
+                  <th className="border border-slate-400 p-1">เวรบ่าย (16.30-00.30): รถ Crash Cart</th>
+                  <th className="border border-slate-400 p-1">เวรดึก (00.30-08.30): รถ Crash Cart</th>
                   <th className="border border-slate-400 p-1">Emergency Box (ดึก)</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
                   const m = medRecords[d];
+                  const c = cartRecords[d];
                   const b = boxRecords[d]?.nightShift;
 
-                  const getShiftSummary = (shift: any) => {
-                    if (!shift || !shift.isComplete) return '-';
+                  const getMedMorningSummary = (shift: any, cartShift: any) => {
+                    const hasMed = shift && shift.isComplete;
+                    const hasCart = cartShift && cartShift.isComplete;
+                    if (!hasMed && !hasCart) return '-';
+                    return (
+                      <div className="space-y-0.5">
+                        {hasMed && (
+                          <div className="font-semibold text-slate-800">
+                            💊 ยา 29 รายการ: ครบ ({shift.recorderName})
+                          </div>
+                        )}
+                        {hasCart && (
+                          <div className="text-[10px] text-slate-600">
+                            🚑 รถ Emergency: ตรวจแล้ว ({cartShift.recorderName})
+                          </div>
+                        )}
+                        {shift?.overallNotes && (
+                          <div className="text-[10px] text-slate-500 italic">{shift.overallNotes}</div>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  const getCartShiftSummary = (cartShift: any) => {
+                    if (!cartShift || !cartShift.isComplete) return '-';
                     return (
                       <div>
                         <div className="font-semibold text-slate-800">
-                          ตรวจครบ 29 รายการ ({shift.recorderName})
+                          ตรวจเรียบร้อย ({cartShift.recorderName})
                         </div>
-                        {shift.overallNotes && (
-                          <div className="text-[10px] text-slate-500">{shift.overallNotes}</div>
-                        )}
+                        <div className="text-[10px] text-slate-500">
+                          แอลกอฮอล์: {cartShift.alcohol70?.remainingCount ?? '-'} | Adr: {cartShift.adrenaline?.remainingCount ?? '-'} | สำลี: {cartShift.cottonBall?.remainingCount ?? '-'}
+                        </div>
                       </div>
                     );
                   };
@@ -145,9 +169,9 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   return (
                     <tr key={d} className="border border-slate-300">
                       <td className="border border-slate-300 p-1 font-bold text-center">{d}</td>
-                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.morning)}</td>
-                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.afternoon)}</td>
-                      <td className="border border-slate-300 p-1">{getShiftSummary(m?.shifts?.night)}</td>
+                      <td className="border border-slate-300 p-1">{getMedMorningSummary(m?.shifts?.morning, c?.shifts?.morning)}</td>
+                      <td className="border border-slate-300 p-1">{getCartShiftSummary(c?.shifts?.afternoon)}</td>
+                      <td className="border border-slate-300 p-1">{getCartShiftSummary(c?.shifts?.night)}</td>
                       <td className="border border-slate-300 p-1">
                         {b ? (
                           <div>

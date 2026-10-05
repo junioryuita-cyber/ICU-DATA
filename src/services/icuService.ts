@@ -19,6 +19,8 @@ import {
   StaffRecorder,
   ShiftType,
   ICU_MEDICATION_CATALOG,
+  EMERGENCY_CART_CATALOG,
+  EMERGENCY_BOX_CATALOG,
   MedicationItemRecord,
 } from '../types/icu';
 
@@ -545,10 +547,10 @@ export async function generateSampleMonthData(
     const nurse2 = names[(day + 1) % names.length];
     const nurse3 = names[(day + 2) % names.length];
 
-    // 1. Medication (29 items)
+    // 1. Medication (29 items with expiry dates)
     const generateShiftItems = (isAfternoonDay3: boolean): Record<string, MedicationItemRecord> => {
       const itemsMap: Record<string, MedicationItemRecord> = {};
-      ICU_MEDICATION_CATALOG.forEach((med) => {
+      ICU_MEDICATION_CATALOG.forEach((med, idx) => {
         let count = med.targetCount;
         let notes = 'ปกติ ครบตามเกณฑ์';
         let status: 'complete' | 'low' | 'empty' = 'complete';
@@ -559,12 +561,18 @@ export async function generateSampleMonthData(
           status = 'low';
         }
 
+        // Add sample expiry dates (some warning < 90 days, others safe)
+        const expDate = idx === 1 || idx === 8 || idx === 15 ? warningExpiry : normalExpiry;
+        const expAlert = idx === 1 || idx === 8 || idx === 15 ? 'warning_3months' : 'normal';
+
         itemsMap[med.id] = {
           remainingCount: count,
           targetCount: med.targetCount,
           unit: med.unit,
           notes,
           status,
+          expiryDate: expDate,
+          expiryAlert: expAlert,
         };
       });
       return itemsMap;
@@ -605,7 +613,25 @@ export async function generateSampleMonthData(
     };
     medsMap[day] = medRecord;
 
-    // 2. Emergency Cart
+    // 2. Emergency Cart (45 items across 5 shelves)
+    const generateCartItems = (): Record<string, MedicationItemRecord> => {
+      const itemsMap: Record<string, MedicationItemRecord> = {};
+      EMERGENCY_CART_CATALOG.forEach((item, idx) => {
+        const expDate = idx === 12 || idx === 25 ? warningExpiry : normalExpiry;
+        const expAlert = idx === 12 || idx === 25 ? 'warning_3months' : 'normal';
+        itemsMap[item.id] = {
+          remainingCount: item.targetCount,
+          targetCount: item.targetCount,
+          unit: item.unit,
+          notes: 'พร้อมใช้งาน',
+          status: 'complete',
+          expiryDate: expDate,
+          expiryAlert: expAlert,
+        };
+      });
+      return itemsMap;
+    };
+
     const cartRecord: DailyEmergencyCartRecord = {
       day,
       month,
@@ -614,6 +640,7 @@ export async function generateSampleMonthData(
       shifts: {
         morning: {
           recorderName: nurse1,
+          items: generateCartItems(),
           alcohol70: { remainingCount: 10, targetCount: 10, unit: 'แผ่น', notes: 'พร้อมใช้', status: 'complete' },
           adrenaline: { remainingCount: 5, targetCount: 5, unit: 'amp', notes: 'พร้อมใช้', status: 'complete' },
           cottonBall: {
@@ -629,6 +656,7 @@ export async function generateSampleMonthData(
         },
         afternoon: {
           recorderName: nurse2,
+          items: generateCartItems(),
           alcohol70: { remainingCount: 10, targetCount: 10, unit: 'แผ่น', notes: 'ครบ', status: 'complete' },
           adrenaline: { remainingCount: 5, targetCount: 5, unit: 'amp', notes: 'ครบ', status: 'complete' },
           cottonBall: {
@@ -644,6 +672,7 @@ export async function generateSampleMonthData(
         },
         night: {
           recorderName: nurse3,
+          items: generateCartItems(),
           alcohol70: { remainingCount: 10, targetCount: 10, unit: 'แผ่น', notes: 'ครบ', status: 'complete' },
           adrenaline: { remainingCount: 5, targetCount: 5, unit: 'amp', notes: 'ครบ', status: 'complete' },
           cottonBall: {
@@ -662,7 +691,25 @@ export async function generateSampleMonthData(
     };
     cartMap[day] = cartRecord;
 
-    // 3. Emergency Box (Daily once in Night shift)
+    // 3. Emergency Box (26 items, Daily once in Night shift)
+    const generateBoxItems = (): Record<string, MedicationItemRecord> => {
+      const itemsMap: Record<string, MedicationItemRecord> = {};
+      EMERGENCY_BOX_CATALOG.forEach((item, idx) => {
+        const expDate = idx === 0 || idx === 21 || idx === 22 ? warningExpiry : normalExpiry;
+        const expAlert = idx === 0 || idx === 21 || idx === 22 ? 'warning_3months' : 'normal';
+        itemsMap[item.id] = {
+          remainingCount: item.targetCount,
+          targetCount: item.targetCount,
+          unit: item.unit,
+          notes: 'ตรวจสภาพและวันหมดอายุเรียบร้อย',
+          status: 'complete',
+          expiryDate: expDate,
+          expiryAlert: expAlert,
+        };
+      });
+      return itemsMap;
+    };
+
     const boxRecord: DailyEmergencyBoxRecord = {
       day,
       month,
@@ -670,6 +717,7 @@ export async function generateSampleMonthData(
       yearThai,
       nightShift: {
         recorderName: nurse3,
+        items: generateBoxItems(),
         alcohol70: { remainingCount: 10, targetCount: 10, unit: 'แผ่น', notes: 'กล่องล็อกซีลเรียบร้อย', status: 'complete' },
         adrenaline: { remainingCount: 5, targetCount: 5, unit: 'amp', notes: 'ครบตามเกณฑ์', status: 'complete' },
         cottonBall: {

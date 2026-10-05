@@ -15,6 +15,9 @@ import {
   THAI_YEARS,
   THAI_MONTHS,
   ShiftType,
+  ICU_MEDICATION_CATALOG,
+  EMERGENCY_CART_CATALOG,
+  EMERGENCY_BOX_CATALOG,
 } from './types/icu';
 import {
   getStaffList,
@@ -212,22 +215,74 @@ export default function App() {
     const alerts: ExpiryAlertInfo[] = [];
     const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
 
-    // From Cart
+    // 1. From Medication (29 items in morning shift)
+    (Object.values(medRecords) as DailyMedicationRecord[]).forEach((rec) => {
+      const morningItems = rec.shifts?.morning?.items;
+      if (morningItems) {
+        Object.entries(morningItems).forEach(([itemId, item]) => {
+          if (item?.expiryDate) {
+            const res = checkExpiryAlert(item.expiryDate);
+            if (res.status === 'warning_3months' || res.status === 'expired') {
+              const def = ICU_MEDICATION_CATALOG.find((m) => m.id === itemId);
+              alerts.push({
+                id: `med_${rec.day}_${itemId}`,
+                source: 'medication',
+                day: rec.day,
+                month: selectedMonth,
+                yearThai: thaiYear,
+                shift: 'morning',
+                itemName: def?.name || itemId,
+                categoryOrShelf: def?.category || 'ยาและเวชภัณฑ์',
+                expiryDate: item.expiryDate,
+                daysRemaining: res.daysRemaining,
+                status: res.status,
+              });
+            }
+          }
+        });
+      }
+    });
+
+    // 2. From Cart (45 items across 3 shifts)
     (Object.values(cartRecords) as DailyEmergencyCartRecord[]).forEach((rec) => {
       (['morning', 'afternoon', 'night'] as ShiftType[]).forEach((sh) => {
-        const item = rec.shifts?.[sh]?.cottonBall;
-        if (item?.expiryDate) {
-          const res = checkExpiryAlert(item.expiryDate);
+        const shiftData = rec.shifts?.[sh];
+        if (shiftData?.items) {
+          Object.entries(shiftData.items).forEach(([itemId, item]) => {
+            if (item?.expiryDate) {
+              const res = checkExpiryAlert(item.expiryDate);
+              if (res.status === 'warning_3months' || res.status === 'expired') {
+                const def = EMERGENCY_CART_CATALOG.find((c) => c.id === itemId);
+                alerts.push({
+                  id: `cart_${rec.day}_${sh}_${itemId}`,
+                  source: 'cart',
+                  day: rec.day,
+                  month: selectedMonth,
+                  yearThai: thaiYear,
+                  shift: sh,
+                  itemName: def?.name || itemId,
+                  categoryOrShelf: def?.shelfName || 'รถ Emergency',
+                  expiryDate: item.expiryDate,
+                  daysRemaining: res.daysRemaining,
+                  status: res.status,
+                });
+              }
+            }
+          });
+        }
+        if (shiftData?.cottonBall?.expiryDate && !shiftData?.items) {
+          const res = checkExpiryAlert(shiftData.cottonBall.expiryDate);
           if (res.status === 'warning_3months' || res.status === 'expired') {
             alerts.push({
-              id: `cart_${rec.day}_${sh}`,
+              id: `cart_${rec.day}_${sh}_legacy`,
               source: 'cart',
               day: rec.day,
               month: selectedMonth,
               yearThai: thaiYear,
               shift: sh,
-              itemName: 'สำลี 5 ก้อน (2 ห่อ)',
-              expiryDate: item.expiryDate,
+              itemName: 'สำลี 5 ก้อน',
+              categoryOrShelf: 'รถ Emergency',
+              expiryDate: shiftData.cottonBall.expiryDate,
               daysRemaining: res.daysRemaining,
               status: res.status,
             });
@@ -236,21 +291,45 @@ export default function App() {
       });
     });
 
-    // From Box
+    // 3. From Box (26 items in night shift)
     (Object.values(boxRecords) as DailyEmergencyBoxRecord[]).forEach((rec) => {
-      const item = rec.nightShift?.cottonBall;
-      if (item?.expiryDate) {
-        const res = checkExpiryAlert(item.expiryDate);
+      const nightData = rec.nightShift;
+      if (nightData?.items) {
+        Object.entries(nightData.items).forEach(([itemId, item]) => {
+          if (item?.expiryDate) {
+            const res = checkExpiryAlert(item.expiryDate);
+            if (res.status === 'warning_3months' || res.status === 'expired') {
+              const def = EMERGENCY_BOX_CATALOG.find((b) => b.id === itemId);
+              alerts.push({
+                id: `box_${rec.day}_${itemId}`,
+                source: 'box',
+                day: rec.day,
+                month: selectedMonth,
+                yearThai: thaiYear,
+                shift: 'night',
+                itemName: def?.name || itemId,
+                categoryOrShelf: def?.category || 'Emergency Box',
+                expiryDate: item.expiryDate,
+                daysRemaining: res.daysRemaining,
+                status: res.status,
+              });
+            }
+          }
+        });
+      }
+      if (nightData?.cottonBall?.expiryDate && !nightData?.items) {
+        const res = checkExpiryAlert(nightData.cottonBall.expiryDate);
         if (res.status === 'warning_3months' || res.status === 'expired') {
           alerts.push({
-            id: `box_${rec.day}`,
+            id: `box_${rec.day}_legacy`,
             source: 'box',
             day: rec.day,
             month: selectedMonth,
             yearThai: thaiYear,
             shift: 'night',
-            itemName: 'สำลี 5 ก้อน (2 ห่อ)',
-            expiryDate: item.expiryDate,
+            itemName: 'สำลี 5 ก้อน',
+            categoryOrShelf: 'Emergency Box',
+            expiryDate: nightData.cottonBall.expiryDate,
             daysRemaining: res.daysRemaining,
             status: res.status,
           });
@@ -259,7 +338,7 @@ export default function App() {
     });
 
     return alerts;
-  }, [cartRecords, boxRecords, selectedYearCE, selectedMonth]);
+  }, [medRecords, cartRecords, boxRecords, selectedYearCE, selectedMonth]);
 
   // Sample mock data generator
   const handleGenerateSampleData = async () => {
@@ -333,6 +412,8 @@ export default function App() {
           <DailyMedicationCheck
             selectedYearCE={selectedYearCE}
             selectedMonth={selectedMonth}
+            onYearChange={setSelectedYearCE}
+            onMonthChange={setSelectedMonth}
             currentStaff={currentStaff}
             records={medRecords}
             onToast={showToast}
@@ -343,6 +424,8 @@ export default function App() {
           <EmergencyCartCheck
             selectedYearCE={selectedYearCE}
             selectedMonth={selectedMonth}
+            onYearChange={setSelectedYearCE}
+            onMonthChange={setSelectedMonth}
             currentStaff={currentStaff}
             records={cartRecords}
             onToast={showToast}
@@ -353,6 +436,8 @@ export default function App() {
           <EmergencyBoxCheck
             selectedYearCE={selectedYearCE}
             selectedMonth={selectedMonth}
+            onYearChange={setSelectedYearCE}
+            onMonthChange={setSelectedMonth}
             currentStaff={currentStaff}
             records={boxRecords}
             onToast={showToast}

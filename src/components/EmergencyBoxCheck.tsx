@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   DailyEmergencyBoxRecord,
   StaffRecorder,
   THAI_MONTHS,
   THAI_YEARS,
+  EMERGENCY_BOX_CATALOG,
+  BoxItemDef,
+  MedicationItemRecord,
 } from '../types/icu';
 import {
   saveEmergencyBoxRecord,
@@ -23,11 +26,20 @@ import {
   ChevronRight,
   AlertTriangle,
   Lock,
+  Sparkles,
+  Search,
+  Filter,
+  Check,
+  RotateCcw,
+  Moon,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface EmergencyBoxCheckProps {
   selectedYearCE: number;
   selectedMonth: number;
+  onYearChange?: (yearCE: number) => void;
+  onMonthChange?: (month: number) => void;
   currentStaff: StaffRecorder;
   records: Record<number, DailyEmergencyBoxRecord>;
   onToast?: (toast: any) => void;
@@ -36,6 +48,8 @@ interface EmergencyBoxCheckProps {
 export const EmergencyBoxCheck: React.FC<EmergencyBoxCheckProps> = ({
   selectedYearCE,
   selectedMonth,
+  onYearChange,
+  onMonthChange,
   currentStaff,
   records,
   onToast,
@@ -51,123 +65,226 @@ export const EmergencyBoxCheck: React.FC<EmergencyBoxCheckProps> = ({
       : 1;
   });
 
+  useEffect(() => {
+    if (selectedDay > daysInMonth) {
+      setSelectedDay(daysInMonth);
+    }
+  }, [daysInMonth, selectedDay]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const currentDayRecord = records[selectedDay];
-  const nightData = currentDayRecord?.nightShift;
-
-  // Local Form state (Only Night Shift: 00.30 - 08.30)
-  const [alcoholCount, setAlcoholCount] = useState<number | ''>(
-    nightData?.alcohol70?.remainingCount ?? 10
-  );
-  const [alcoholNotes, setAlcoholNotes] = useState<string>(
-    nightData?.alcohol70?.notes ?? 'แผ่นแอลกอฮอล์ครบ 10 แผ่น ในกล่องฉุกเฉิน'
-  );
-
-  const [adrenalineCount, setAdrenalineCount] = useState<number | ''>(
-    nightData?.adrenaline?.remainingCount ?? 5
-  );
-  const [adrenalineNotes, setAdrenalineNotes] = useState<string>(
-    nightData?.adrenaline?.notes ?? 'Adrenaline ใน Emergency Box ครบ 5 amp'
-  );
-
-  const [cottonCount, setCottonCount] = useState<number | ''>(
-    nightData?.cottonBall?.remainingCount ?? 2
-  );
-  const [cottonExpiryDate, setCottonExpiryDate] = useState<string>(() => {
-    if (nightData?.cottonBall?.expiryDate) return nightData.cottonBall.expiryDate;
-    const d = new Date();
-    d.setMonth(d.getMonth() + 6);
-    return d.toISOString().split('T')[0];
+  // Form states for the 26 items in Emergency Box
+  const [itemsState, setItemsState] = useState<
+    Record<string, { count: number | ''; notes: string; expiryDate: string }>
+  >(() => {
+    const initial: Record<string, { count: number | ''; notes: string; expiryDate: string }> = {};
+    EMERGENCY_BOX_CATALOG.forEach((item) => {
+      initial[item.id] = {
+        count: item.targetCount,
+        notes: 'กล่องซีลเรียบร้อย',
+        expiryDate: '',
+      };
+    });
+    return initial;
   });
-  const [cottonNotes, setCottonNotes] = useState<string>(
-    nightData?.cottonBall?.notes ?? 'ตรวจสภาพซองสำลีและวันหมดอายุเรียบร้อย'
-  );
 
-  const [recorderName, setRecorderName] = useState<string>(
-    nightData?.recorderName || currentStaff.name
-  );
-  const [overallNotes, setOverallNotes] = useState<string>(
-    nightData?.overallNotes ?? 'กล่อง Emergency Box ซีลแน่นหนา ไม่มีการแกะใช้'
-  );
+  const [recorderName, setRecorderName] = useState<string>(currentStaff.name || '');
+  const [overallNotes, setOverallNotes] = useState<string>('กล่อง Emergency Box ซีลล็อกสภาพสมบูรณ์ ไม่มีการแกะใช้');
 
-  // Sync state on day change
-  React.useEffect(() => {
-    const data = records[selectedDay]?.nightShift;
-    if (data) {
-      setAlcoholCount(data.alcohol70?.remainingCount ?? 10);
-      setAlcoholNotes(data.alcohol70?.notes ?? '');
-      setAdrenalineCount(data.adrenaline?.remainingCount ?? 5);
-      setAdrenalineNotes(data.adrenaline?.notes ?? '');
-      setCottonCount(data.cottonBall?.remainingCount ?? 2);
-      setCottonExpiryDate(data.cottonBall?.expiryDate || '');
-      setCottonNotes(data.cottonBall?.notes ?? '');
-      setRecorderName(data.recorderName || currentStaff.name);
-      setOverallNotes(data.overallNotes || '');
+  // Categories list
+  const categories = useMemo(() => {
+    const set = new Set(EMERGENCY_BOX_CATALOG.map((i) => i.category));
+    return ['all', ...Array.from(set)];
+  }, []);
+
+  // Filtered items
+  const filteredItems = useMemo(() => {
+    return EMERGENCY_BOX_CATALOG.filter((item) => {
+      const matchCat = selectedCategory === 'all' || item.category === selectedCategory;
+      const matchSearch =
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.category.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [selectedCategory, searchTerm]);
+
+  // Synchronize state when selected day, month, year, or records change
+  useEffect(() => {
+    const dayRecord = records[selectedDay];
+    const nightData = dayRecord?.nightShift;
+
+    if (nightData && nightData.items) {
+      const nextState: Record<string, { count: number | ''; notes: string; expiryDate: string }> = {};
+      EMERGENCY_BOX_CATALOG.forEach((item) => {
+        const saved = nightData.items?.[item.id];
+        if (saved) {
+          nextState[item.id] = {
+            count: saved.remainingCount !== null ? saved.remainingCount : '',
+            notes: saved.notes || '',
+            expiryDate: saved.expiryDate || '',
+          };
+        } else {
+          // Backward compatibility check
+          if (item.id === 'box_alcohol_70' && nightData.alcohol70) {
+            nextState[item.id] = {
+              count: nightData.alcohol70.remainingCount ?? item.targetCount,
+              notes: nightData.alcohol70.notes || '',
+              expiryDate: '',
+            };
+          } else if (item.id === 'box_adrenaline' && nightData.adrenaline) {
+            nextState[item.id] = {
+              count: nightData.adrenaline.remainingCount ?? item.targetCount,
+              notes: nightData.adrenaline.notes || '',
+              expiryDate: '',
+            };
+          } else if (item.id === 'box_cotton_5' && nightData.cottonBall) {
+            nextState[item.id] = {
+              count: nightData.cottonBall.remainingCount ?? item.targetCount,
+              notes: nightData.cottonBall.notes || '',
+              expiryDate: nightData.cottonBall.expiryDate || '',
+            };
+          } else {
+            nextState[item.id] = { count: item.targetCount, notes: 'ครบตามเกณฑ์', expiryDate: '' };
+          }
+        }
+      });
+      setItemsState(nextState);
+      setRecorderName(nightData.recorderName || currentStaff.name || '');
+      setOverallNotes(nightData.overallNotes || 'กล่อง Emergency Box ซีลล็อกสภาพสมบูรณ์');
     } else {
-      setAlcoholCount(10);
-      setAlcoholNotes('ครบ 10 แผ่น พร้อมใช้');
-      setAdrenalineCount(5);
-      setAdrenalineNotes('ครบ 5 amp สภาพสมบูรณ์');
-      setCottonCount(2);
-      const d = new Date();
-      d.setMonth(d.getMonth() + 6);
-      setCottonExpiryDate(d.toISOString().split('T')[0]);
-      setCottonNotes('ซองปลอดเชื้อสมบูรณ์');
-      setRecorderName(currentStaff.name);
-      setOverallNotes('ซีลล็อกกล่องฉุกเฉินเรียบร้อย');
+      // Default standard stock
+      const defaultState: Record<string, { count: number | ''; notes: string; expiryDate: string }> = {};
+      EMERGENCY_BOX_CATALOG.forEach((item) => {
+        defaultState[item.id] = {
+          count: item.targetCount,
+          notes: 'ครบตามเกณฑ์ พร้อมใช้',
+          expiryDate: '',
+        };
+      });
+      setItemsState(defaultState);
+      setRecorderName(currentStaff.name || '');
+      setOverallNotes('ตรวจเช็คอุปกรณ์กล่องฉุกเฉินครบ 26 รายการ ซีลล็อกเรียบร้อย');
     }
     setSaveSuccess(false);
-  }, [selectedDay, records, currentStaff.name]);
+  }, [selectedDay, selectedMonth, selectedYearCE, records, currentStaff.name]);
 
-  const cottonExpiryCheck = checkExpiryAlert(cottonExpiryDate);
-
-  const handleFillFull = () => {
-    setAlcoholCount(10);
-    setAlcoholNotes('70% Alcohol ครบ 10 แผ่น');
-    setAdrenalineCount(5);
-    setAdrenalineNotes('Adrenaline ครบ 5 amp');
-    setCottonCount(2);
-    setCottonNotes('สำลี 5 ก้อน ครบ 2 ห่อ');
+  const handleCountChange = (id: string, value: string) => {
+    setItemsState((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        count: value === '' ? '' : Math.max(0, Number(value)),
+      },
+    }));
   };
 
+  const handleAdjustCount = (id: string, delta: number) => {
+    setItemsState((prev) => {
+      const current = typeof prev[id]?.count === 'number' ? (prev[id].count as number) : 0;
+      return {
+        ...prev,
+        [id]: {
+          ...prev[id],
+          count: Math.max(0, current + delta),
+        },
+      };
+    });
+  };
+
+  const handleSetStandard = (id: string, targetCount: number) => {
+    setItemsState((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        count: targetCount,
+        notes: 'ครบตามเกณฑ์',
+      },
+    }));
+  };
+
+  const handleExpiryDateChange = (id: string, expiryDate: string) => {
+    setItemsState((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        expiryDate,
+      },
+    }));
+  };
+
+  const handleNotesChange = (id: string, notes: string) => {
+    setItemsState((prev) => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        notes,
+      },
+    }));
+  };
+
+  // Quick fill 100% full
+  const handleFillAllFull = () => {
+    const fullState: Record<string, { count: number | ''; notes: string; expiryDate: string }> = {};
+    EMERGENCY_BOX_CATALOG.forEach((item) => {
+      fullState[item.id] = {
+        count: item.targetCount,
+        notes: `ครบ ${item.targetCount} ${item.unit} ในกล่องฉุกเฉิน`,
+        expiryDate: itemsState[item.id]?.expiryDate || '',
+      };
+    });
+    setItemsState(fullState);
+    setOverallNotes('ตรวจสอบครบ 26 รายการ ซีลกล่องสมบูรณ์พร้อมใช้งาน 100%');
+  };
+
+  // Save handler for night shift (00.30 - 08.30)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      const alcNum = typeof alcoholCount === 'number' ? alcoholCount : Number(alcoholCount) || 0;
-      const adrNum = typeof adrenalineCount === 'number' ? adrenalineCount : Number(adrenalineCount) || 0;
-      const cotNum = typeof cottonCount === 'number' ? cottonCount : Number(cottonCount) || 0;
+      const itemsMap: Record<string, MedicationItemRecord> = {};
+      EMERGENCY_BOX_CATALOG.forEach((item) => {
+        const itemVal = itemsState[item.id];
+        const val = itemVal?.count !== '' ? Number(itemVal?.count) : null;
+        const status =
+          val === null
+            ? 'unrecorded'
+            : val >= item.targetCount
+            ? 'complete'
+            : val > 0
+            ? 'low'
+            : 'empty';
 
-      const expiryRes = checkExpiryAlert(cottonExpiryDate);
+        const expAlert = itemVal?.expiryDate ? checkExpiryAlert(itemVal.expiryDate).status : 'normal';
 
-      const nightShiftDataToSave = {
-        recorderName: recorderName.trim() || currentStaff.name,
-        recorderRole: currentStaff.role,
+        itemsMap[item.id] = {
+          remainingCount: val,
+          targetCount: item.targetCount,
+          unit: item.unit,
+          notes: itemVal?.notes?.trim() || '',
+          status,
+          expiryDate: itemVal?.expiryDate || '',
+          expiryAlert: expAlert,
+        };
+      });
+
+      const nightShiftData = {
+        recorderName: (recorderName.trim() || currentStaff.name || 'พยาบาลวิชาชีพ ICU').trim(),
+        recorderRole: currentStaff.role || 'พยาบาลวิชาชีพ',
         checkedAt: new Date().toISOString(),
-        alcohol70: {
-          remainingCount: alcNum,
-          targetCount: 10,
-          unit: 'แผ่น',
-          notes: alcoholNotes.trim(),
-          status: alcNum >= 10 ? 'complete' : alcNum > 0 ? 'low' : 'empty',
-        },
-        adrenaline: {
-          remainingCount: adrNum,
-          targetCount: 5,
-          unit: 'amp',
-          notes: adrenalineNotes.trim(),
-          status: adrNum >= 5 ? 'complete' : adrNum > 0 ? 'low' : 'empty',
-        },
+        items: itemsMap,
+        alcohol70: itemsMap['box_alcohol_70'] || { remainingCount: 10, targetCount: 10, unit: 'แผ่น', notes: 'ครบ', status: 'complete' },
+        adrenaline: itemsMap['box_adrenaline'] || { remainingCount: 5, targetCount: 5, unit: 'amp', notes: 'ครบ', status: 'complete' },
         cottonBall: {
-          remainingCount: cotNum,
+          remainingCount: itemsMap['box_cotton_5']?.remainingCount ?? 2,
           targetCount: 2,
           unit: 'ห่อ',
-          notes: cottonNotes.trim(),
-          status: cotNum >= 2 ? 'complete' : cotNum > 0 ? 'low' : 'empty',
-          expiryDate: cottonExpiryDate,
-          expiryAlert: expiryRes.status,
+          notes: itemsMap['box_cotton_5']?.notes || 'ปกติ',
+          status: 'complete',
+          expiryDate: itemsMap['box_cotton_5']?.expiryDate || '',
+          expiryAlert: itemsMap['box_cotton_5']?.expiryAlert || 'normal',
         },
         overallNotes: overallNotes.trim(),
         isComplete: true,
@@ -178,27 +295,27 @@ export const EmergencyBoxCheck: React.FC<EmergencyBoxCheckProps> = ({
         thaiYear,
         selectedMonth,
         selectedDay,
-        nightShiftDataToSave
+        nightShiftData
       );
 
       setSaveSuccess(true);
       if (onToast) {
         onToast({
           type: 'success',
-          title: 'บันทึก Emergency Box (เวรดึก) สำเร็จ',
-          message: `บันทึกข้อมูลกล่องฉุกเฉิน วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firebase Firestore เรียบร้อยแล้ว`,
+          title: `บันทึก Emergency Box (เวรดึก) สำเร็จ`,
+          message: `บันทึกอุปกรณ์กล่องฉุกเฉิน 26 รายการ วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firebase Firestore เรียบร้อยแล้ว`,
           collection: 'icu_emergency_box',
-          docId: `${selectedYearCE}_${String(selectedMonth).padStart(2, '0')}_day${String(selectedDay).padStart(2, '0')}`,
+          docId: `${selectedYearCE}_${String(selectedMonth).padStart(2, '0')}_${String(selectedDay).padStart(2, '0')}`,
         });
       }
-      setTimeout(() => setSaveSuccess(false), 4000);
+      setTimeout(() => setSaveSuccess(false), 4500);
     } catch (err: any) {
-      console.error('Error saving emergency box:', err);
+      console.error('Error saving emergency box check:', err);
       if (onToast) {
         onToast({
           type: 'error',
           title: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล',
-          message: err?.message || 'ไม่สามารถเชื่อมต่อ Firestore ได้ในขณะนี้ ข้อมูลถูกบันทึกลงแคชอุปกรณ์แทน',
+          message: err?.message || 'ไม่สามารถเชื่อมต่อ Firestore ได้ในขณะนี้',
         });
       }
     } finally {
@@ -206,385 +323,459 @@ export const EmergencyBoxCheck: React.FC<EmergencyBoxCheckProps> = ({
     }
   };
 
+  // Form stats
+  const formStats = useMemo(() => {
+    let completed = 0;
+    let low = 0;
+    let empty = 0;
+    let expiringWarning = 0;
+
+    EMERGENCY_BOX_CATALOG.forEach((item) => {
+      const state = itemsState[item.id];
+      const val = state?.count;
+      if (typeof val === 'number') {
+        if (val >= item.targetCount) completed++;
+        else if (val > 0) low++;
+        else empty++;
+      }
+      if (state?.expiryDate) {
+        const al = checkExpiryAlert(state.expiryDate);
+        if (al.status === 'warning_3months' || al.status === 'expired') {
+          expiringWarning++;
+        }
+      }
+    });
+
+    return { completed, low, empty, expiringWarning, total: EMERGENCY_BOX_CATALOG.length };
+  }, [itemsState]);
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* 1. Header Banner */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-indigo-700 font-semibold text-sm mb-1">
-            <Briefcase className="w-4 h-4" />
-            <span>งานที่ 4: ตรวจสอบ Emergency Box ประจำเดือน</span>
+          <div className="flex flex-wrap items-center gap-2 text-indigo-700 font-semibold text-xs mb-1.5">
+            <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 rounded-full font-bold border border-indigo-200 flex items-center gap-1">
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>งานหลัก: ตรวจสอบ Emergency Box ประจำเดือน (26 รายการ)</span>
+            </span>
+            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full font-bold border border-indigo-200 flex items-center gap-1">
+              <Moon className="w-3 h-3 text-indigo-600" />
+              <span>ตรวจวันละ 1 ครั้ง ในเวรดึก (00.30 - 08.30 น.)</span>
+            </span>
           </div>
-          <h2 className="text-xl font-bold text-slate-800">
-            ตรวจเช็ค Emergency Box — เดือน {monthObj.name} พ.ศ. {thaiYear}
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Emergency Box ประจำเดือน — {monthObj.name} พ.ศ. {thaiYear}
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            ความถี่: <strong>วันละ 1 ครั้ง เฉพาะเวรดึก (00.30 - 08.30 น.)</strong> พร้อมระบบแจ้งเตือนวันหมดอายุสำลีล่วงหน้า 3 เดือน
+          <p className="text-xs text-slate-500 mt-1">
+            บันทึกอุปกรณ์ช่วยชีวิตฉุกเฉิน 26 รายการ พร้อมตรวจสอบวันหมดอายุล่วงหน้า 3 เดือน และลงชื่อผู้ตรวจบันทึกทุกเวรดึก
           </p>
         </div>
 
-        {/* Day Nav */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          <button
-            onClick={() => setSelectedDay((prev) => Math.max(1, prev - 1))}
-            disabled={selectedDay <= 1}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+        {/* Year Dropdown */}
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedYearCE}
+            onChange={(e) => onYearChange && onYearChange(Number(e.target.value))}
+            aria-label="เลือกปี พ.ศ."
+            className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 font-bold text-sm">
-            <Calendar className="w-4 h-4 text-indigo-600" />
-            <span>วันที่ {selectedDay} {monthObj.short}</span>
-          </div>
-
-          <button
-            onClick={() => setSelectedDay((prev) => Math.min(daysInMonth, prev + 1))}
-            disabled={selectedDay >= daysInMonth}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+            {THAI_YEARS.map((y) => (
+              <option key={y.ceYear} value={y.ceYear}>
+                {y.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Night Shift Single Daily Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Form */}
-        <div className="lg:col-span-2 space-y-6">
-          <form onSubmit={handleSave} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shadow-xs">
-                  เวรดึก
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <span>การตรวจเช็คประจำเวรดึก (00.30 - 08.30 น.)</span>
-                    <span className="text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-medium">
-                      วันละ 1 ครั้ง
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    วันที่ {selectedDay} {monthObj.name} พ.ศ. {thaiYear}
-                  </p>
-                </div>
-              </div>
-
+      {/* 2. 12-Month Selector Bar */}
+      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-1.5">
+          {THAI_MONTHS.map((m) => {
+            const isSelected = selectedMonth === m.value;
+            return (
               <button
+                key={m.value}
                 type="button"
-                onClick={handleFillFull}
-                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 text-indigo-800 rounded-xl text-xs font-semibold transition-colors"
+                onClick={() => onMonthChange && onMonthChange(m.value)}
+                className={`px-2 py-2 rounded-xl text-center text-xs transition-all cursor-pointer border ${
+                  isSelected
+                    ? 'bg-indigo-600 border-indigo-700 text-white font-bold shadow-xs ring-2 ring-indigo-300'
+                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700 hover:text-indigo-700'
+                }`}
               >
-                <Zap className="w-3.5 h-3.5 text-indigo-600" />
-                <span>เติมสต็อกกล่องฉุกเฉินครบ</span>
+                <div className="font-semibold text-xs leading-none">{m.short}</div>
+                <div className={`text-[10px] mt-0.5 truncate ${isSelected ? 'text-indigo-100' : 'text-slate-400'}`}>
+                  {m.name}
+                </div>
               </button>
-            </div>
+            );
+          })}
+        </div>
+      </div>
 
-            {/* 1. 70% Alcohol (10 แผ่น) */}
-            <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-sm">1. 70% Alcohol pad (Emergency Box)</span>
-                    <span className="text-xs bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md font-medium">
-                      เกณฑ์มาตรฐาน: 10 แผ่น
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">แผ่นแอลกอฮอล์สำหรับฆ่าเชื้อในกล่องฉุกเฉิน</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-600 font-medium">คงเหลือ:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    required
-                    value={alcoholCount}
-                    onChange={(e) => setAlcoholCount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-20 px-3 py-1.5 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                  <span className="text-xs font-medium text-slate-600">แผ่น</span>
-                  {typeof alcoholCount === 'number' && (
-                    <span
-                      className={`text-xs px-2 py-1 rounded-md font-semibold ${
-                        alcoholCount >= 10 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {alcoholCount >= 10 ? 'ครบถ้วน' : `ขาด ${10 - alcoholCount}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">หมายเหตุ:</label>
-                <input
-                  type="text"
-                  placeholder="ระบุหมายเหตุ เช่น ซองอยู่ในสภาพดี ปิดผนึกเรียบร้อย"
-                  value={alcoholNotes}
-                  onChange={(e) => setAlcoholNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* 2. Adrenaline 1 mg/ml inj (5 amp) */}
-            <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-sm">2. Adrenaline 1 mg/ml inj (Emergency Box)</span>
-                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-medium">
-                      เกณฑ์มาตรฐาน: 5 amp
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">ยาช่วยชีวิตฉุกเฉินในกล่องฉุกเฉิน ICU Box</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-600 font-medium">คงเหลือ:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="50"
-                    required
-                    value={adrenalineCount}
-                    onChange={(e) => setAdrenalineCount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-20 px-3 py-1.5 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                  <span className="text-xs font-medium text-slate-600">amp</span>
-                  {typeof adrenalineCount === 'number' && (
-                    <span
-                      className={`text-xs px-2 py-1 rounded-md font-semibold ${
-                        adrenalineCount >= 5 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {adrenalineCount >= 5 ? 'ครบถ้วน' : `ขาด ${5 - adrenalineCount}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">หมายเหตุ:</label>
-                <input
-                  type="text"
-                  placeholder="ระบุหมายเหตุ เช่น ยาพร้อมใช้ ตรวจสอบวันหมดอายุแล้ว"
-                  value={adrenalineNotes}
-                  onChange={(e) => setAdrenalineNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* 3. สำลี 5 ก้อน (2 ห่อ) + วันหมดอายุ + แจ้งเตือน 3 เดือน */}
-            <div className={`border rounded-xl p-4 space-y-3 transition-colors ${
-              cottonExpiryCheck.status === 'warning_3months'
-                ? 'bg-amber-50/80 border-amber-300'
-                : cottonExpiryCheck.status === 'expired'
-                ? 'bg-rose-50/80 border-rose-300'
-                : 'bg-slate-50/70 border-slate-200'
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-sm">3. สำลี 5 ก้อน (Emergency Box)</span>
-                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-medium">
-                      เกณฑ์มาตรฐาน: 2 ห่อ
-                    </span>
-                  </div>
-                  <span className="text-xs text-slate-500">สำลีก้อนปลอดเชื้อในกล่องช่วยชีวิตฉุกเฉิน</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-600 font-medium">คงเหลือ:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    required
-                    value={cottonCount}
-                    onChange={(e) => setCottonCount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-20 px-3 py-1.5 text-center font-bold text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                  <span className="text-xs font-medium text-slate-600">ห่อ</span>
-                  {typeof cottonCount === 'number' && (
-                    <span
-                      className={`text-xs px-2 py-1 rounded-md font-semibold ${
-                        cottonCount >= 2 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {cottonCount >= 2 ? 'ครบถ้วน' : `ขาด ${2 - cottonCount}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Expiry date input */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 bg-white p-3 rounded-lg border border-slate-200">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                    <span>ระบุวันหมดอายุสำลีในกล่อง (EXP Date):</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={cottonExpiryDate}
-                    onChange={(e) => setCottonExpiryDate(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col justify-center">
-                  <div className="text-[11px] font-medium text-slate-500 mb-1">การแจ้งเตือนวันหมดอายุ:</div>
-                  {cottonExpiryCheck.status === 'warning_3months' ? (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>แจ้งเตือน: ใกล้หมดอายุใน 3 เดือน (เหลือ {cottonExpiryCheck.daysRemaining} วัน)</span>
-                    </div>
-                  ) : cottonExpiryCheck.status === 'expired' ? (
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-lg border border-rose-300">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>หมดอายุแล้ว ({Math.abs(cottonExpiryCheck.daysRemaining)} วัน) - กรุณาเปลี่ยนทันที!</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>ยังไม่หมดอายุ (เหลือ {cottonExpiryCheck.daysRemaining} วัน)</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  หมายเหตุเพื่อแจ้งเตือนวันหมดอายุ / สถานะกล่อง:
-                </label>
-                <input
-                  type="text"
-                  placeholder="ระบุหมายเหตุ เช่น แจ้งเตือนเปลี่ยนสำลีก่อน 3 เดือนเพื่อความพร้อม"
-                  value={cottonNotes}
-                  onChange={(e) => setCottonNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Recorder & Overall Notes */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  ชื่อ-นามสกุล ผู้บันทึกเวรดึก <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    required
-                    value={recorderName}
-                    onChange={(e) => setRecorderName(e.target.value)}
-                    placeholder="เช่น พว. ณภัทร สุขสมบูรณ์"
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">หมายเหตุสภาพกล่อง Emergency Box</label>
-                <div className="relative">
-                  <FileText className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={overallNotes}
-                    onChange={(e) => setOverallNotes(e.target.value)}
-                    placeholder="เช่น ซีลล็อกเลขที่ ICU-BOX-02 สมบูรณ์"
-                    className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Save Button */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-              {saveSuccess ? (
-                <div className="flex items-center gap-1.5 text-emerald-700 text-xs font-semibold bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>บันทึกตรวจเช็ค Emergency Box ประจำเวรดึกเรียบร้อยแล้ว!</span>
-                </div>
-              ) : (
-                <span className="text-xs text-slate-400">บันทึกตรวจเช็ค 1 ครั้งต่อวันในเวรดึก</span>
-              )}
-
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>{isSaving ? 'กำลังบันทึก...' : 'บันทึก Emergency Box (เวรดึก)'}</span>
-              </button>
-            </div>
-          </form>
+      {/* 3. Day Picker Pills */}
+      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
+        <div className="flex items-center justify-between px-2">
+          <span className="text-xs font-bold text-slate-700">
+            เลือกวันที่ตรวจเช็ค (เวรดึก 00.30 - 08.30 น.):
+          </span>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> ตรวจแล้ว
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-slate-300"></span> ยังไม่ตรวจ
+            </span>
+          </div>
         </div>
 
-        {/* Right Info */}
-        <div className="space-y-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
-            <h3 className="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-              <Lock className="w-4 h-4 text-indigo-600" />
-              <span>สถานะ Emergency Box วันที่ {selectedDay}</span>
-            </h3>
+        <div className="overflow-x-auto scrollbar-none pb-1">
+          <div className="flex items-center gap-1.5 min-w-max">
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+              const isSelected = d === selectedDay;
+              const rec = records[d];
+              const isDone = !!rec?.nightShift?.isComplete;
 
-            {nightData?.isComplete ? (
-              <div className="space-y-2.5 text-xs text-slate-700 bg-indigo-50/40 p-3.5 rounded-xl border border-indigo-100">
-                <div className="flex justify-between font-bold text-indigo-900 border-b border-indigo-200 pb-1.5">
-                  <span>ตรวจเช็คเวรดึก (00.30 - 08.30)</span>
-                  <span className="text-emerald-700">ตรวจแล้ว</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>70% Alcohol (10 แผ่น):</span>
-                  <span className="font-semibold">{nightData.alcohol70.remainingCount} แผ่น</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Adrenaline (5 amp):</span>
-                  <span className="font-semibold">{nightData.adrenaline.remainingCount} amp</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>สำลี 5 ก้อน (2 ห่อ):</span>
-                  <span className="font-semibold">{nightData.cottonBall.remainingCount} ห่อ</span>
-                </div>
-                {nightData.cottonBall.expiryDate && (
-                  <div className="text-[11px] text-amber-800">
-                    วันหมดอายุสำลี: {nightData.cottonBall.expiryDate}
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setSelectedDay(d)}
+                  className={`w-10 h-12 rounded-xl flex flex-col items-center justify-center text-xs transition-all relative cursor-pointer border ${
+                    isSelected
+                      ? 'bg-indigo-600 border-indigo-700 text-white font-black shadow-md ring-2 ring-indigo-300'
+                      : isDone
+                      ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900 font-semibold'
+                      : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700'
+                  }`}
+                >
+                  <span className="text-xs">{d}</span>
+                  <div className="mt-0.5">
+                    {isDone ? (
+                      <Check className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-emerald-600'}`} />
+                    ) : (
+                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-300' : 'bg-slate-300'}`} />
+                    )}
                   </div>
-                )}
-                <div className="pt-2 border-t border-indigo-100 text-[11px] text-slate-500">
-                  ผู้บันทึก: <strong className="text-slate-800">{nightData.recorderName}</strong>
-                </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Form Container */}
+      <form onSubmit={handleSave} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
+        {/* Form Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                <span>เวรดึก (00.30 - 08.30 น.) — วันละ 1 ครั้ง</span>
+              </span>
+              <span className="text-xs text-slate-400">|</span>
+              <span className="text-xs font-semibold text-slate-600">
+                วันที่ {selectedDay} {monthObj.name} พ.ศ. {thaiYear}
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mt-1">
+              บันทึกรายการอุปกรณ์ Emergency Box (26 รายการ)
+            </h3>
+            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-500">
+              <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                ครบ: {formStats.completed}
+              </span>
+              <span className="text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                ขาด: {formStats.low}
+              </span>
+              <span className="text-rose-700 font-semibold bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                หมด: {formStats.empty}
+              </span>
+              {formStats.expiringWarning > 0 && (
+                <span className="text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                  <span>ใกล้หมดอายุใน 3 เดือน ({formStats.expiringWarning})</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleFillAllFull}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              <span>เติมสต็อกครบเกณฑ์ 26 รายการ (100%)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Recorder Profile & Notes */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-indigo-600" />
+              <span>ชื่อ-นามสกุล พยาบาลผู้ตรวจ (เวรดึก) *</span>
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="เช่น พว. ปิยะวัฒน์ เจริญสุข"
+              value={recorderName}
+              onChange={(e) => setRecorderName(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              หมายเหตุภาพรวม Emergency Box
+            </label>
+            <input
+              type="text"
+              placeholder="เช่น หมายเลขซีล ICU-BOX-02 ล็อกแน่นหนา ไม่มีการฉีกขาด"
+              value={overallNotes}
+              onChange={(e) => setOverallNotes(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800"
+            />
+          </div>
+        </div>
+
+        {/* Category Pills & Search */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
+            <span className="text-xs font-semibold text-slate-400 px-1 shrink-0 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5" /> หมวด:
+            </span>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                  selectedCategory === cat
+                    ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                }`}
+              >
+                {cat === 'all' ? 'ทั้งหมด (26)' : cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative shrink-0">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="ค้นหาอุปกรณ์..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-56"
+            />
+          </div>
+        </div>
+
+        {/* 26 Items Table */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                  <th className="py-2.5 px-3 w-12 text-center">ลำดับ</th>
+                  <th className="py-2.5 px-3 min-w-[200px]">รายการอุปกรณ์ Emergency Box</th>
+                  <th className="py-2.5 px-3 w-32">หมวดหมู่</th>
+                  <th className="py-2.5 px-3 w-24 text-center">เกณฑ์มาตรฐาน</th>
+                  <th className="py-2.5 px-3 w-44 text-center">คงเหลือจริง</th>
+                  <th className="py-2.5 px-3 w-24 text-center">สถานะ</th>
+                  <th className="py-2.5 px-3 w-40">วันหมดอายุ (เตือน 3 ด.)</th>
+                  <th className="py-2.5 px-3 min-w-[150px]">หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredItems.map((item, idx) => {
+                  const state = itemsState[item.id];
+                  const countVal = state?.count;
+                  const hasCount = typeof countVal === 'number';
+                  const isComplete = hasCount && countVal >= item.targetCount;
+                  const isLow = hasCount && countVal > 0 && countVal < item.targetCount;
+                  const isEmpty = hasCount && countVal === 0;
+
+                  const expAlert = state?.expiryDate ? checkExpiryAlert(state.expiryDate) : null;
+                  const isWarning = expAlert?.status === 'warning_3months';
+                  const isExpired = expAlert?.status === 'expired';
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isExpired
+                          ? 'bg-rose-100/50'
+                          : isWarning
+                          ? 'bg-amber-50/60'
+                          : isLow
+                          ? 'bg-amber-50/40'
+                          : ''
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 text-center text-slate-400 font-medium">
+                        {idx + 1}
+                      </td>
+
+                      <td className="py-2.5 px-3">
+                        <div className="font-bold text-slate-800">{item.name}</div>
+                      </td>
+
+                      <td className="py-2.5 px-3">
+                        <span className="text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded font-medium">
+                          {item.category}
+                        </span>
+                      </td>
+
+                      <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                        {item.targetCount} <span className="text-slate-400 font-normal">{item.unit}</span>
+                      </td>
+
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustCount(item.id, -1)}
+                            className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer"
+                          >
+                            -
+                          </button>
+
+                          <input
+                            type="number"
+                            min="0"
+                            value={countVal}
+                            onChange={(e) => handleCountChange(item.id, e.target.value)}
+                            className={`w-16 px-2 py-1 text-center font-bold border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs ${
+                              isComplete
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                                : isLow
+                                ? 'border-amber-300 bg-amber-50 text-amber-900'
+                                : isEmpty
+                                ? 'border-rose-300 bg-rose-50 text-rose-900'
+                                : 'border-slate-300 bg-white text-slate-800'
+                            }`}
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustCount(item.id, 1)}
+                            className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center cursor-pointer"
+                          >
+                            +
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSetStandard(item.id, item.targetCount)}
+                            className="px-1.5 py-1 text-[10px] rounded-lg bg-slate-100 hover:bg-indigo-100 text-slate-600 hover:text-indigo-700 border border-slate-200 font-medium cursor-pointer"
+                          >
+                            ครบ
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="py-2.5 px-3 text-center">
+                        {isComplete && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>ครบ</span>
+                          </span>
+                        )}
+                        {isLow && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <span>ขาด {item.targetCount - (countVal as number)}</span>
+                          </span>
+                        )}
+                        {isEmpty && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                            <span>หมด</span>
+                          </span>
+                        )}
+                        {!hasCount && <span className="text-slate-400">-</span>}
+                      </td>
+
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="date"
+                          value={state?.expiryDate || ''}
+                          onChange={(e) => handleExpiryDateChange(item.id, e.target.value)}
+                          className={`w-full px-2 py-1 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 ${
+                            isExpired
+                              ? 'border-rose-400 bg-rose-50 text-rose-900 font-bold'
+                              : isWarning
+                              ? 'border-amber-400 bg-amber-50 text-amber-900 font-bold'
+                              : 'border-slate-200 bg-white text-slate-700'
+                          }`}
+                        />
+                        {isWarning && (
+                          <div className="text-[10px] text-amber-700 font-semibold mt-0.5 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>เหลือ {expAlert.daysRemaining} วัน (&le; 3 ด.)</span>
+                          </div>
+                        )}
+                        {isExpired && (
+                          <div className="text-[10px] text-rose-700 font-bold mt-0.5">
+                            หมดอายุแล้ว!
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="py-2.5 px-3">
+                        <input
+                          type="text"
+                          placeholder="หมายเหตุ..."
+                          value={state?.notes || ''}
+                          onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                          className="w-full px-2 py-1 bg-transparent border border-slate-200 hover:border-slate-300 focus:bg-white rounded-lg focus:outline-none text-xs text-slate-700"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Save Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+          <div>
+            {saveSuccess ? (
+              <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-bold animate-pulse">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>บันทึก Emergency Box (เวรดึก) สำเร็จแล้ว</span>
               </div>
             ) : (
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-400">
-                ยังไม่มีการบันทึกตรวจ Emergency Box ในวันที่ {selectedDay}
-              </div>
+              <p className="text-xs text-slate-400">
+                ข้อมูลบันทึกลง Cloud (Firestore: icu_emergency_box)
+              </p>
             )}
           </div>
 
-          <div className="bg-slate-900 text-slate-200 p-4 rounded-2xl text-xs space-y-2">
-            <div className="font-bold text-white flex items-center gap-1.5">
-              <Briefcase className="w-4 h-4 text-indigo-400" />
-              <span>ข้อกำหนด Emergency Box ใน ICU</span>
-            </div>
-            <ul className="space-y-1 text-slate-300 list-disc list-inside">
-              <li>ตรวจเช็คความพร้อมทุกคืนใน <strong>เวรดึก (00.30 - 08.30 น.)</strong></li>
-              <li>ตรวจสอบสภาพกล่อง หมายเลขซีล และความครบถ้วนของยาและเวชภัณฑ์</li>
-              <li>หากมีการใช้ยาหรือสำลี ให้ลงบันทึกและส่งคืนห้องยาเพื่อซีลใหม่ทันที</li>
-            </ul>
-          </div>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 disabled:opacity-60 cursor-pointer"
+          >
+            <Save className="w-4 h-4" />
+            <span>
+              {isSaving
+                ? 'กำลังบันทึกลง Cloud...'
+                : `บันทึก Emergency Box (เวรดึก) วันที่ ${selectedDay} ${monthObj.short}`}
+            </span>
+          </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 };
