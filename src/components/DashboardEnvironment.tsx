@@ -65,8 +65,6 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
         temp14: t?.morning_14?.temp ?? null,
         temp22: t?.afternoon_22?.temp ?? null,
         temp06: t?.night_06?.temp ?? null,
-        tempMax: t?.dailyMax_09?.temp ?? null,
-        tempMin: t?.dailyMin_09?.temp ?? null,
         // Humidity (Red)
         hum14: h?.morning_14?.humidity ?? null,
         hum22: h?.afternoon_22?.humidity ?? null,
@@ -117,7 +115,7 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
   const handleExportCSV = () => {
     const rows = [
       ['ICU-DATA สรุปการบันทึกอุณหภูมิและความชื้นสัมพัทธ์', `${monthObj.name} พ.ศ. ${thaiYear}`],
-      ['วันที่', 'Temp 14.00 (°C)', 'Temp 22.00 (°C)', 'Temp 06.00 (°C)', 'Temp Max 09.00', 'Temp Min 09.00', 'Hum 14.00 (%RH)', 'Hum 22.00 (%RH)', 'Hum 06.00 (%RH)'],
+      ['วันที่', 'Temp 14.00 (°C)', 'Temp 22.00 (°C)', 'Temp 06.00 (°C)', 'Hum 14.00 (%RH)', 'Hum 22.00 (%RH)', 'Hum 06.00 (%RH)'],
     ];
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -128,8 +126,6 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
         String(t?.morning_14?.temp ?? '-'),
         String(t?.afternoon_22?.temp ?? '-'),
         String(t?.night_06?.temp ?? '-'),
-        String(t?.dailyMax_09?.temp ?? '-'),
-        String(t?.dailyMin_09?.temp ?? '-'),
         String(h?.morning_14?.humidity ?? '-'),
         String(h?.afternoon_22?.humidity ?? '-'),
         String(h?.night_06?.humidity ?? '-'),
@@ -252,11 +248,7 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
                       ? 'เช้า 14.00'
                       : name === 'temp22'
                       ? 'บ่าย 22.00'
-                      : name === 'temp06'
-                      ? 'ดึก 06.00'
-                      : name === 'tempMax'
-                      ? 'Max 09.00'
-                      : 'Min 09.00',
+                      : 'ดึก 06.00',
                   ]}
                 />
                 <Legend verticalAlign="top" height={32} />
@@ -335,7 +327,7 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
                 <th rowSpan={2} className="py-3 px-3 border-b border-slate-800 font-bold sticky left-0 bg-slate-900 z-10 w-20">
                   วันที่
                 </th>
-                <th colSpan={4} className="py-2 px-3 border-b border-slate-800 font-bold bg-blue-950 border-l border-slate-800 text-blue-200">
+                <th colSpan={3} className="py-2 px-3 border-b border-slate-800 font-bold bg-blue-950 border-l border-slate-800 text-blue-200">
                   อุณหภูมิตู้เย็นยา (°C) [เกณฑ์ 2.0 - 8.0 °C]
                 </th>
                 <th colSpan={3} className="py-2 px-3 border-b border-slate-800 font-bold bg-rose-950 border-l border-slate-800 text-rose-200">
@@ -349,7 +341,6 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
                 <th className="py-2 px-2 border-l border-slate-700">14.00 (เช้า)</th>
                 <th className="py-2 px-2 border-l border-slate-700">22.00 (บ่าย)</th>
                 <th className="py-2 px-2 border-l border-slate-700">06.00 (ดึก)</th>
-                <th className="py-2 px-2 border-l border-slate-700">Max/Min 09.00</th>
 
                 <th className="py-2 px-2 border-l border-slate-700">14.00 (เช้า)</th>
                 <th className="py-2 px-2 border-l border-slate-700">22.00 (บ่าย)</th>
@@ -364,8 +355,6 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
                 const t14 = t?.morning_14?.temp;
                 const t22 = t?.afternoon_22?.temp;
                 const t06 = t?.night_06?.temp;
-                const tMax = t?.dailyMax_09?.temp;
-                const tMin = t?.dailyMin_09?.temp;
 
                 const h14 = h?.morning_14?.humidity;
                 const h22 = h?.afternoon_22?.humidity;
@@ -418,15 +407,6 @@ export const DashboardEnvironment: React.FC<DashboardEnvironmentProps> = ({
                         <span className={t06 < 2 || t06 > 8 ? 'text-rose-600 font-bold' : 'text-blue-700'}>
                           {t06} °C
                         </span>
-                      ) : (
-                        <span className="text-slate-300">-</span>
-                      )}
-                    </td>
-
-                    {/* Max/Min 09.00 */}
-                    <td className="py-2.5 px-2 border-l border-slate-100 text-[11px] text-slate-600 font-medium">
-                      {tMax !== undefined && tMax !== null && tMin !== undefined && tMin !== null ? (
-                        <span>{tMax} / {tMin} °C</span>
                       ) : (
                         <span className="text-slate-300">-</span>
                       )}

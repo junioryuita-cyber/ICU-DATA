@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   THAI_MONTHS,
   THAI_YEARS,
@@ -9,11 +9,12 @@ import {
   User,
   Database,
   Printer,
-  Sparkles,
   Activity,
   ChevronDown,
   AlertTriangle,
   RefreshCw,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -26,7 +27,7 @@ interface HeaderProps {
   onOpenDbModal: () => void;
   activeTab: string;
   onSelectTab: (tabId: string) => void;
-  onGenerateSampleData: () => void;
+  onClearMonthData?: () => void;
   onOpenPrintModal: () => void;
   isSyncing: boolean;
   expiryAlertCount: number;
@@ -43,12 +44,13 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDbModal,
   activeTab,
   onSelectTab,
-  onGenerateSampleData,
+  onClearMonthData,
   onOpenPrintModal,
   isSyncing,
   expiryAlertCount,
   onOpenAlertDrawer,
 }) => {
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const currentThaiYearObj = THAI_YEARS.find((y) => y.ceYear === selectedYearCE) || THAI_YEARS[0];
   const currentMonthObj = THAI_MONTHS.find((m) => m.value === selectedMonth) || THAI_MONTHS[0];
 
@@ -188,8 +190,23 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
 
-            {/* Actions: Print & Sample Data */}
+            {/* Actions: Live DB Status, Print & Reset Month */}
             <div className="flex items-center gap-1.5">
+              {/* Live Firebase DB Status Pill */}
+              <button
+                type="button"
+                onClick={onOpenDbModal}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                title="คลิกเพื่อตรวจสอบสถานะการบันทึกข้อมูลจริงลง Firebase Firestore (ICU-DATA)"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Database className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline">Firebase จริง</span>
+              </button>
+
               <button
                 type="button"
                 onClick={onOpenPrintModal}
@@ -199,23 +216,60 @@ export const Header: React.FC<HeaderProps> = ({
                 <Printer className="w-4 h-4" />
               </button>
 
-              <button
-                type="button"
-                onClick={onGenerateSampleData}
-                disabled={isSyncing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                title="สร้างข้อมูลตัวอย่างจำลองสำหรับเดือนนี้เพื่อทดสอบระบบ"
-              >
-                {isSyncing ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                )}
-                <span className="hidden sm:inline">จำลองข้อมูล</span>
-              </button>
+              {onClearMonthData && (
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-600 hover:text-rose-700 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+                  title="ล้างข้อมูลการทดสอบของเดือนนี้เพื่อเริ่มบันทึกข้อมูลจริง"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">ล้างข้อมูลเดือนนี้</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Clear Month Confirmation Dialog */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-2 bg-rose-100 rounded-xl">
+                  <RotateCcw className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-base text-slate-900">ล้างข้อมูลประจำเดือนนี้?</h4>
+                  <p className="text-xs text-slate-500">เดือน {currentMonthObj.name} พ.ศ. {currentThaiYearObj.thaiYear}</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                การดำเนินการนี้จะลบข้อมูลที่บันทึกไว้ในเดือนนี้ทั้งหมดออกจากระบบและ Firebase เพื่อให้สามารถเริ่มบันทึกข้อมูลจริงใหม่ได้อย่างสะอาดหมดจด
+              </p>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowClearConfirm(false);
+                    onClearMonthData?.();
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer"
+                >
+                  ยืนยันล้างข้อมูล
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 2-ROW NAVIGATION MENU (แถบเมนู 2 บรรทัด) */}
         <div className="border-t border-slate-100 py-1.5 space-y-1.5">

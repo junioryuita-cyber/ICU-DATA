@@ -517,7 +517,41 @@ export async function saveHumidityRecord(
   }
 }
 
-// Sample Data Generator to populate current or chosen month for immediate evaluation
+// Clear/Reset data for a specific month (allows user to purge any test/sample data to start 100% clean)
+export async function clearMonthData(yearCE: number, month: number): Promise<void> {
+  const daysInMonth = getDaysInMonth(yearCE, month);
+
+  // Clear local caches for this month
+  localStorage.removeItem(`icu_meds_${yearCE}_${month}`);
+  localStorage.removeItem(`icu_cart_${yearCE}_${month}`);
+  localStorage.removeItem(`icu_box_${yearCE}_${month}`);
+  localStorage.removeItem(`icu_fridge_${yearCE}_${month}`);
+  localStorage.removeItem(`icu_humidity_${yearCE}_${month}`);
+
+  // Collections to clear
+  const collections = [
+    COLL_MEDICATIONS,
+    COLL_EMERGENCY_CART,
+    COLL_EMERGENCY_BOX,
+    COLL_FRIDGE_TEMP,
+    COLL_HUMIDITY,
+  ];
+
+  const deletePromises: Promise<void>[] = [];
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const docId = makeDocId(yearCE, month, day);
+    for (const coll of collections) {
+      deletePromises.push(
+        deleteDoc(doc(db, coll, docId)).catch(() => {})
+      );
+    }
+  }
+
+  await Promise.all(deletePromises);
+}
+
+// Sample Data Generator (deprecated - kept for backwards compatibility)
 export async function generateSampleMonthData(
   yearCE: number,
   yearThai: number,

@@ -17,7 +17,6 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Activity,
   Info,
 } from 'lucide-react';
 import {
@@ -79,11 +78,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
   const [rec06, setRec06] = useState<string>(currentDayRecord?.night_06?.recorderName || currentStaff.name);
   const [note06, setNote06] = useState<string>(currentDayRecord?.night_06?.notes ?? 'ปกติ');
 
-  // 09.00 Max and Min
-  const [max09, setMax09] = useState<number | ''>(currentDayRecord?.dailyMax_09?.temp ?? 5.5);
-  const [recMax09, setRecMax09] = useState<string>(currentDayRecord?.dailyMax_09?.recorderName || currentStaff.name);
-  const [min09, setMin09] = useState<number | ''>(currentDayRecord?.dailyMin_09?.temp ?? 3.5);
-
   // Sync state when day changes
   React.useEffect(() => {
     const data = records[selectedDay];
@@ -99,10 +93,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
       setTemp06(data.night_06?.temp ?? '');
       setRec06(data.night_06?.recorderName || currentStaff.name);
       setNote06(data.night_06?.notes ?? '');
-
-      setMax09(data.dailyMax_09?.temp ?? '');
-      setRecMax09(data.dailyMax_09?.recorderName || currentStaff.name);
-      setMin09(data.dailyMin_09?.temp ?? '');
     } else {
       setTemp14('');
       setRec14(currentStaff.name);
@@ -115,10 +105,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
       setTemp06('');
       setRec06(currentStaff.name);
       setNote06('');
-
-      setMax09('');
-      setRecMax09(currentStaff.name);
-      setMin09('');
     }
     setSaveSuccess(false);
   }, [selectedDay, records, currentStaff.name]);
@@ -130,8 +116,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
       const val14 = temp14 !== '' ? Number(temp14) : null;
       const val22 = temp22 !== '' ? Number(temp22) : null;
       const val06 = temp06 !== '' ? Number(temp06) : null;
-      const valMax = max09 !== '' ? Number(max09) : null;
-      const valMin = min09 !== '' ? Number(min09) : null;
 
       const recordToSave: Partial<DailyFridgeTempRecord> = {
         morning_14: {
@@ -155,16 +139,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
           notes: note06.trim(),
           status: val06 === null ? 'unrecorded' : val06 >= 2 && val06 <= 8 ? 'normal' : val06 < 2 ? 'low' : 'high',
         },
-        dailyMax_09: {
-          temp: valMax,
-          recorderName: recMax09.trim() || currentStaff.name,
-          recordedAt: new Date().toISOString(),
-        },
-        dailyMin_09: {
-          temp: valMin,
-          recorderName: recMax09.trim() || currentStaff.name,
-          recordedAt: new Date().toISOString(),
-        },
       };
 
       await saveFridgeTempRecord(selectedYearCE, thaiYear, selectedMonth, selectedDay, recordToSave);
@@ -173,7 +147,7 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
         onToast({
           type: 'success',
           title: 'บันทึกอุณหภูมิตู้เย็นยา (2-8°C) สำเร็จ',
-          message: `บันทึกค่าอุณหภูมิ 14.00, 22.00, 06.00 และ Max/Min วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firebase Firestore เรียบร้อยแล้ว`,
+          message: `บันทึกค่าอุณหภูมิ 14.00, 22.00, 06.00 วันที่ ${selectedDay} ${monthObj.name} พ.ศ. ${thaiYear} ลง Firebase Firestore เรียบร้อยแล้ว`,
           collection: 'icu_fridge_temp',
           docId: `${selectedYearCE}_${String(selectedMonth).padStart(2, '0')}_day${String(selectedDay).padStart(2, '0')}`,
         });
@@ -204,8 +178,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
         temp14: rec?.morning_14?.temp ?? null,
         temp22: rec?.afternoon_22?.temp ?? null,
         temp06: rec?.night_06?.temp ?? null,
-        dailyMax: rec?.dailyMax_09?.temp ?? null,
-        dailyMin: rec?.dailyMin_09?.temp ?? null,
       };
     });
   }, [records, daysInMonth]);
@@ -246,7 +218,7 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
             บันทึกและกราฟอุณหภูมิตู้เย็นยา — เดือน {monthObj.name} พ.ศ. {thaiYear}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            เกณฑ์ปกติ: <strong>2.0 - 8.0 °C</strong> | บันทึก 3 กะ: เช้า (14.00), บ่าย (22.00), ดึก (06.00) และค่า Max/Min เวลา 09.00
+            เกณฑ์ปกติ: <strong>2.0 - 8.0 °C</strong> | บันทึก 3 กะ: เช้า (14.00 น.), บ่าย (22.00 น.), ดึก (06.00 น.)
           </p>
         </div>
 
@@ -318,7 +290,7 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
                 <span>บันทึกอุณหภูมิ วันที่ {selectedDay} {monthObj.name}</span>
               </h3>
               <p className="text-xs text-slate-500">
-                รอบเวลา 14.00, 22.00, 06.00 และค่า Max/Min เวลา 09.00
+                รอบเวลา 14.00 น., 22.00 น., 06.00 น.
               </p>
             </div>
 
@@ -436,59 +408,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
               </div>
             </div>
 
-            {/* 4. ค่า สูงสุด (Max) และ ต่ำสุด (Min) ณ เวลา 09.00 น. */}
-            <div className="bg-slate-50 border border-slate-300 rounded-xl p-3.5 space-y-2.5">
-              <div className="font-bold text-xs text-slate-800 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>4. ค่าสูงสุด & ต่ำสุด ประจำวัน (บันทึกเวลา 09.00 น.)</span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Max (°C) เวลา 09.00:</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="สูงสุด"
-                      value={max09}
-                      onChange={(e) => setMax09(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2 py-1 text-center font-bold text-slate-800 border border-slate-300 rounded-md focus:outline-none text-sm"
-                    />
-                    <span className="text-xs text-slate-600">°C</span>
-                  </div>
-                </div>
-
-                <div className="bg-white p-2.5 rounded-lg border border-slate-200">
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Min (°C) เวลา 09.00:</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="ต่ำสุด"
-                      value={min09}
-                      onChange={(e) => setMin09(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2 py-1 text-center font-bold text-slate-800 border border-slate-300 rounded-md focus:outline-none text-sm"
-                    />
-                    <span className="text-xs text-slate-600">°C</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">ผู้บันทึกรอบ 09.00 น.:</label>
-                <input
-                  type="text"
-                  placeholder="ชื่อผู้บันทึก 09.00"
-                  value={recMax09}
-                  onChange={(e) => setRecMax09(e.target.value)}
-                  className="w-full px-2.5 py-1 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none"
-                />
-              </div>
-            </div>
-
             {/* Save Button */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-100">
               {saveSuccess ? (
@@ -541,11 +460,7 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
                         ? 'เช้า 14.00 น.'
                         : name === 'temp22'
                         ? 'บ่าย 22.00 น.'
-                        : name === 'temp06'
-                        ? 'ดึก 06.00 น.'
-                        : name === 'dailyMax'
-                        ? 'Max 09.00 น.'
-                        : 'Min 09.00 น.',
+                        : 'ดึก 06.00 น.',
                     ]}
                     labelFormatter={(label) => `วันที่ ${label}`}
                   />
@@ -556,8 +471,6 @@ export const FridgeTempCheck: React.FC<FridgeTempCheckProps> = ({
                       if (value === 'temp14') return 'เช้า 14.00 น.';
                       if (value === 'temp22') return 'บ่าย 22.00 น.';
                       if (value === 'temp06') return 'ดึก 06.00 น.';
-                      if (value === 'dailyMax') return 'Max 09.00 น.';
-                      if (value === 'dailyMin') return 'Min 09.00 น.';
                       return value;
                     }}
                   />

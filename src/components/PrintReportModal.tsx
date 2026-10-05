@@ -199,7 +199,7 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   <th rowSpan={2} className="border border-slate-400 p-1 w-12">
                     วันที่
                   </th>
-                  <th colSpan={4} className="border border-slate-400 p-1">
+                  <th colSpan={3} className="border border-slate-400 p-1">
                     อุณหภูมิตู้เย็นยา (°C)
                   </th>
                   <th colSpan={3} className="border border-slate-400 p-1">
@@ -210,7 +210,6 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                   <th className="border border-slate-400 p-1">14.00</th>
                   <th className="border border-slate-400 p-1">22.00</th>
                   <th className="border border-slate-400 p-1">06.00</th>
-                  <th className="border border-slate-400 p-1">Max/Min 09.00</th>
                   <th className="border border-slate-400 p-1">14.00</th>
                   <th className="border border-slate-400 p-1">22.00</th>
                   <th className="border border-slate-400 p-1">06.00</th>
@@ -226,9 +225,6 @@ export const PrintReportModal: React.FC<PrintReportModalProps> = ({
                       <td className="border border-slate-300 p-1">{t?.morning_14?.temp ?? '-'}</td>
                       <td className="border border-slate-300 p-1">{t?.afternoon_22?.temp ?? '-'}</td>
                       <td className="border border-slate-300 p-1">{t?.night_06?.temp ?? '-'}</td>
-                      <td className="border border-slate-300 p-1 text-[10px]">
-                        {t?.dailyMax_09?.temp ?? '-'}/{t?.dailyMin_09?.temp ?? '-'}
-                      </td>
                       <td className="border border-slate-300 p-1">{h?.morning_14?.humidity ?? '-'}</td>
                       <td className="border border-slate-300 p-1">{h?.afternoon_22?.humidity ?? '-'}</td>
                       <td className="border border-slate-300 p-1">{h?.night_06?.humidity ?? '-'}</td>

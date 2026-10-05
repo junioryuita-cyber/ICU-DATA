@@ -28,7 +28,7 @@ import {
   subscribeMonthEmergencyBox,
   subscribeMonthFridgeTemp,
   subscribeMonthHumidity,
-  generateSampleMonthData,
+  clearMonthData,
   checkExpiryAlert,
 } from './services/icuService';
 import { Header } from './components/Header';
@@ -44,8 +44,7 @@ import { PrintReportModal } from './components/PrintReportModal';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
 import { DbStatusModal } from './components/DbStatusModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
-import confetti from 'canvas-confetti';
-import { Activity, Sparkles, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
+import { Activity, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
 
 const EMPTY_STAFF: StaffRecorder = {
   id: '',
@@ -340,26 +339,30 @@ export default function App() {
     return alerts;
   }, [medRecords, cartRecords, boxRecords, selectedYearCE, selectedMonth]);
 
-  // Sample mock data generator
-  const handleGenerateSampleData = async () => {
+  // Clear month data for a clean fresh start with real recording
+  const handleClearMonthData = async () => {
     setIsSyncing(true);
     try {
+      await clearMonthData(selectedYearCE, selectedMonth);
+      setMedRecords({});
+      setCartRecords({});
+      setBoxRecords({});
+      setTempRecords({});
+      setHumidityRecords({});
+      const monthObj = THAI_MONTHS.find((m) => m.value === selectedMonth) || THAI_MONTHS[0];
       const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
-      await generateSampleMonthData(
-        selectedYearCE,
-        thaiYear,
-        selectedMonth,
-        staffList.map((s) => s.name)
-      );
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch (e) {}
+      showToast({
+        type: 'info',
+        title: 'ล้างข้อมูลประจำเดือนเรียบร้อย',
+        message: `ล้างข้อมูลเดือน ${monthObj.name} พ.ศ. ${thaiYear} แล้ว พร้อมสำหรับการเริ่มบันทึกข้อมูลจริง`,
+      });
     } catch (err) {
-      console.error('Sample data gen error:', err);
+      console.error('Clear month error:', err);
+      showToast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาดในการล้างข้อมูล',
+        message: 'ไม่สามารถลบข้อมูลออกจากฐานข้อมูลได้ โปรดลองอีกครั้ง',
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -378,7 +381,7 @@ export default function App() {
         onOpenDbModal={() => setIsDbModalOpen(true)}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onGenerateSampleData={handleGenerateSampleData}
+        onClearMonthData={handleClearMonthData}
         onOpenPrintModal={() => setIsPrintModalOpen(true)}
         isSyncing={isSyncing}
         expiryAlertCount={expiryAlerts.length}

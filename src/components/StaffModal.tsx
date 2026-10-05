@@ -26,6 +26,7 @@ export const StaffModal: React.FC<StaffModalProps> = ({
   const [newRole, setNewRole] = useState('พยาบาลวิชาชีพ (ICU Nurse)');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && staffList.length === 0) {
@@ -51,16 +52,14 @@ export const StaffModal: React.FC<StaffModalProps> = ({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, staffId: string) => {
-    e.stopPropagation();
+  const handleConfirmDelete = async (staffId: string) => {
     if (!onDeleteStaff) return;
-    if (window.confirm('คุณต้องการลบรายชื่อผู้บันทึกนี้ออกจากระบบหรือไม่?')) {
-      setDeletingId(staffId);
-      try {
-        await onDeleteStaff(staffId);
-      } finally {
-        setDeletingId(null);
-      }
+    setDeletingId(staffId);
+    try {
+      await onDeleteStaff(staffId);
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -165,15 +164,39 @@ export const StaffModal: React.FC<StaffModalProps> = ({
                         <div className="flex items-center gap-2">
                           {isSelected && <Check className="w-4 h-4 text-blue-600" />}
                           {onDeleteStaff && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDelete(e, st.id)}
-                              disabled={deletingId === st.id}
-                              title="ลบรายชื่อนี้"
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            confirmDeleteId === st.id ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[11px] font-bold text-rose-700">ยืนยันลบ?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmDelete(st.id)}
+                                  disabled={deletingId === st.id}
+                                  className="px-2 py-0.5 bg-rose-600 text-white rounded text-[11px] font-medium hover:bg-rose-700 cursor-pointer"
+                                >
+                                  {deletingId === st.id ? '...' : 'ลบ'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded text-[11px] hover:bg-slate-300 cursor-pointer"
+                                >
+                                  ยกเลิก
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDeleteId(st.id);
+                                }}
+                                disabled={deletingId === st.id}
+                                title="ลบรายชื่อนี้"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
