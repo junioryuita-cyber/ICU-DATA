@@ -9,6 +9,7 @@ import {
   HardDrive,
   ShieldCheck,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import { testFirestoreConnection } from '../services/icuService';
 import firebaseConfigJson from '../../firebase-applet-config.json';
@@ -21,6 +22,9 @@ interface DbStatusModalProps {
   boxCount: number;
   tempCount: number;
   humCount: number;
+  selectedYearCE?: number;
+  selectedMonth?: number;
+  onClearMonthData?: () => Promise<void>;
 }
 
 export const DbStatusModal: React.FC<DbStatusModalProps> = ({
@@ -31,9 +35,14 @@ export const DbStatusModal: React.FC<DbStatusModalProps> = ({
   boxCount,
   tempCount,
   humCount,
+  selectedYearCE,
+  selectedMonth,
+  onClearMonthData,
 }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; latency?: number } | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const runTest = async () => {
     setIsTesting(true);
@@ -174,10 +183,51 @@ export const DbStatusModal: React.FC<DbStatusModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+          {onClearMonthData && (
+            <div>
+              {confirmClear ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-rose-600 font-semibold">ยืนยันล้างข้อมูลเดือนนี้?</span>
+                  <button
+                    onClick={async () => {
+                      setIsClearing(true);
+                      try {
+                        await onClearMonthData();
+                        setConfirmClear(false);
+                      } finally {
+                        setIsClearing(false);
+                      }
+                    }}
+                    disabled={isClearing}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                  >
+                    {isClearing ? 'กำลังล้าง...' : 'ใช่, ล้างข้อมูล'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmClear(false)}
+                    className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(true)}
+                  className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-600 font-medium transition-colors"
+                  title="ล้างข้อมูลทดสอบของเดือนนี้เพื่อเริ่มต้นบันทึกข้อมูลจริง"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>ล้างข้อมูลทดสอบเพื่อเริ่มบันทึกจริง</span>
+                </button>
+              )}
+            </div>
+          )}
+
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all ml-auto"
           >
             ปิดหน้าต่าง
           </button>

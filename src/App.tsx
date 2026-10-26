@@ -28,8 +28,8 @@ import {
   subscribeMonthEmergencyBox,
   subscribeMonthFridgeTemp,
   subscribeMonthHumidity,
-  generateSampleMonthData,
   checkExpiryAlert,
+  clearMonthData,
 } from './services/icuService';
 import { Header } from './components/Header';
 import { StaffModal } from './components/StaffModal';
@@ -45,8 +45,7 @@ import { UserManual } from './components/UserManual';
 import { ExpiryAlertBanner } from './components/ExpiryAlertBanner';
 import { DbStatusModal } from './components/DbStatusModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
-import confetti from 'canvas-confetti';
-import { Activity, Sparkles, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
+import { Activity, CheckCircle2, ShieldCheck, Database } from 'lucide-react';
 
 const EMPTY_STAFF: StaffRecorder = {
   id: '',
@@ -341,26 +340,26 @@ export default function App() {
     return alerts;
   }, [medRecords, cartRecords, boxRecords, selectedYearCE, selectedMonth]);
 
-  // Sample mock data generator
-  const handleGenerateSampleData = async () => {
+  const handleClearMonthData = async () => {
     setIsSyncing(true);
     try {
-      const thaiYear = THAI_YEARS.find((y) => y.ceYear === selectedYearCE)?.thaiYear || selectedYearCE + 543;
-      await generateSampleMonthData(
-        selectedYearCE,
-        thaiYear,
-        selectedMonth,
-        staffList.map((s) => s.name)
-      );
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch (e) {}
-    } catch (err) {
-      console.error('Sample data gen error:', err);
+      await clearMonthData(selectedYearCE, selectedMonth);
+      setMedRecords({});
+      setCartRecords({});
+      setBoxRecords({});
+      setTempRecords({});
+      setHumidityRecords({});
+      showToast({
+        type: 'success',
+        title: 'ล้างข้อมูลเรียบร้อย',
+        message: `ล้างข้อมูลเดือน ${selectedMonth}/${selectedYearCE} เรียบร้อยแล้ว พร้อมสำหรับการบันทึกข้อมูลจริง`,
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'เกิดข้อผิดพลาดในการล้างข้อมูล',
+        message: err?.message || 'ไม่สามารถล้างข้อมูลได้',
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -379,7 +378,6 @@ export default function App() {
         onOpenDbModal={() => setIsDbModalOpen(true)}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
-        onGenerateSampleData={handleGenerateSampleData}
         onOpenPrintModal={() => setIsPrintModalOpen(true)}
         isSyncing={isSyncing}
         expiryAlertCount={expiryAlerts.length}
@@ -509,6 +507,9 @@ export default function App() {
         boxCount={Object.keys(boxRecords).length}
         tempCount={Object.keys(tempRecords).length}
         humCount={Object.keys(humidityRecords).length}
+        selectedYearCE={selectedYearCE}
+        selectedMonth={selectedMonth}
+        onClearMonthData={handleClearMonthData}
       />
 
       {/* Toast Notification Container */}

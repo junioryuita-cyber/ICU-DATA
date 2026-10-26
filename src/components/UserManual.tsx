@@ -585,11 +585,11 @@ export const UserManual: React.FC<UserManualProps> = ({
 
               <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
                 <div className="font-bold text-slate-800 flex items-center gap-1.5 text-emerald-700">
-                  <HelpCircle className="w-4 h-4" />
-                  <span>Q: ปุ่ม "จำลองข้อมูล" มีไว้ทำอะไร?</span>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Q: มั่นใจได้อย่างไรว่าข้อมูลจริงถูกบันทึกลงระบบคลาวด์?</span>
                 </div>
                 <p className="text-slate-600 leading-relaxed">
-                  <strong>A: สำหรับทดสอบระบบ</strong> ปุ่มนี้จะสร้างข้อมูลตัวอย่างของเดือนนั้นๆ ทั้ง 31 วัน เพื่อให้พยาบาลหรือผู้ตรวจประเมินได้เห็นตัวอย่างกราฟและรายงานสรุปที่สมบูรณ์ โดยสามารถกดล้างหรือเขียนทับได้
+                  <strong>A: ระบบเชื่อมต่อ Cloud Firestore แบบเรียลไทม์</strong> ทุกครั้งที่กดปุ่มบันทึก ข้อมูลจริงจะถูกส่งตรงไปยังฐานข้อมูลกลางทันที พร้อมทั้งจัดเก็บสำรองในเครื่องเพื่อความปลอดภัยสูงสุดและสามารถเรียกดูรายงานที่ถูกต้องได้ตลอดเวลา
                 </p>
               </div>
             </div>

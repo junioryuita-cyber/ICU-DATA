@@ -9,11 +9,9 @@ import {
   User,
   Database,
   Printer,
-  Sparkles,
   Activity,
   ChevronDown,
   AlertTriangle,
-  RefreshCw,
   BookOpen,
 } from 'lucide-react';
 
@@ -27,7 +25,6 @@ interface HeaderProps {
   onOpenDbModal: () => void;
   activeTab: string;
   onSelectTab: (tabId: string) => void;
-  onGenerateSampleData: () => void;
   onOpenPrintModal: () => void;
   isSyncing: boolean;
   expiryAlertCount: number;
@@ -44,7 +41,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenDbModal,
   activeTab,
   onSelectTab,
-  onGenerateSampleData,
   onOpenPrintModal,
   isSyncing,
   expiryAlertCount,
@@ -213,21 +209,6 @@ export const Header: React.FC<HeaderProps> = ({
                 title="พิมพ์แบบฟอร์มรายงานสรุปประจำเดือน"
               >
                 <Printer className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={onGenerateSampleData}
-                disabled={isSyncing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                title="สร้างข้อมูลตัวอย่างจำลองสำหรับเดือนนี้เพื่อทดสอบระบบ"
-              >
-                {isSyncing ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                )}
-                <span className="hidden sm:inline">จำลองข้อมูล</span>
               </button>
             </div>
           </div>
